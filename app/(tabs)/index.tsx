@@ -1,17 +1,15 @@
 import { useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Colors } from '../../constants/colors';
+import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
+import { AppHeader, HeaderIconButton, Card, SectionLabel, CategoryIcon } from '../../components/ui';
+import { useTheme } from '../../theme/ThemeProvider';
 import { useTransactionStore } from '../../store/useTransactionStore';
 import { usePortfolioStore } from '../../store/usePortfolioStore';
-import { useUIStore } from '../../store/useUIStore';
 import { getCategoryByKey } from '../../constants/categories';
-
-const fmt = (n: number) =>
-  n.toLocaleString('fr-MA', { style: 'currency', currency: 'MAD', maximumFractionDigits: 0 });
+import { fmtMAD, fmtSigned } from '../../lib/format';
 
 const DAY_LABELS = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
-
 function getLast7Days() {
   return Array.from({ length: 7 }, (_, i) => {
     const d = new Date();
@@ -21,49 +19,97 @@ function getLast7Days() {
 }
 
 export default function DashboardScreen() {
-  const openQuickAdd = useUIStore(s => s.openQuickAdd);
+  const t = useTheme();
   const { transactions, monthlyTotals, byCategory, currentMonth, loadMonth } = useTransactionStore();
   const { holdings, quotes, loadHoldings } = usePortfolioStore();
 
   useEffect(() => { loadMonth(currentMonth); loadHoldings(); }, []);
 
-  const balance  = monthlyTotals.income - monthlyTotals.expenses;
-  const savingPct = monthlyTotals.income > 0
-    ? Math.round(((monthlyTotals.income - monthlyTotals.expenses) / monthlyTotals.income) * 100)
-    : 0;
+  const balance = monthlyTotals.income - monthlyTotals.expenses;
+  const savingPct = monthlyTotals.income > 0 ? Math.round((balance / monthlyTotals.income) * 100) : 0;
 
-  const portfolioValue = holdings.reduce(
-    (s, h) => s + h.shares * (quotes[h.ticker]?.price ?? h.buy_price), 0
-  );
+  const portfolioValue = holdings.reduce((s, h) => s + h.shares * (quotes[h.ticker]?.price ?? h.buy_price), 0);
   const portfolioGain = portfolioValue - holdings.reduce((s, h) => s + h.shares * h.buy_price, 0);
 
-  // 7-day spending chart data
   const days = getLast7Days();
   const dailySpend = days.map(({ iso }) =>
-    transactions.filter(t => t.date === iso && t.type === 'expense').reduce((s, t) => s + t.amount, 0)
+    transactions.filter(tx => tx.date === iso && tx.type === 'expense').reduce((s, tx) => s + tx.amount, 0)
   );
   const maxSpend = Math.max(...dailySpend, 1);
-  const todayIdx = 6;
 
-  // Top 4 categories
-  const topCats = Object.entries(byCategory)
-    .filter(([, v]) => v > 0)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 4);
+  const topCats = Object.entries(byCategory).filter(([, v]) => v > 0).sort(([, a], [, b]) => b - a).slice(0, 4);
   const totalSpent = monthlyTotals.expenses || 1;
-
   const monthLabel = new Date().toLocaleDateString('fr-MA', { month: 'long', year: 'numeric' });
 
-  return (
-    <SafeAreaView style={s.safe}>
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+  const s = StyleSheet.create({
+    scroll: { paddingHorizontal: t.spacing.lg, paddingBottom: 120, gap: t.spacing.md },
 
-        {/* ── Hero card ── */}
+    hero: {
+      backgroundColor: t.colors.primary, borderRadius: t.radius.xxl, padding: t.spacing.xl, gap: t.spacing.lg,
+      ...t.shadow.float, shadowColor: t.colors.primary,
+    },
+    heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+    heroMonth: { ...t.font.micro, color: 'rgba(255,255,255,0.7)', marginBottom: 6 },
+    heroBalance: { color: '#fff', fontSize: 40, fontWeight: '800', letterSpacing: -1.5, lineHeight: 44 },
+    heroSub: { color: 'rgba(255,255,255,0.7)', fontSize: 12, marginTop: 4 },
+    savePill: { backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: t.radius.md, paddingHorizontal: 12, paddingVertical: 8, alignItems: 'center' },
+    savePillTxt: { color: '#fff', fontSize: 18, fontWeight: '800' },
+    savePillSub: { color: 'rgba(255,255,255,0.75)', fontSize: 10, fontWeight: '600' },
+    chips: { flexDirection: 'row', backgroundColor: 'rgba(0,0,0,0.18)', borderRadius: t.radius.lg, padding: 14, alignItems: 'center' },
+    chip: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
+    chipDot: { width: 8, height: 8, borderRadius: 4 },
+    chipLbl: { color: 'rgba(255,255,255,0.7)', fontSize: 11, fontWeight: '500' },
+    chipAmt: { color: '#fff', fontSize: 15, fontWeight: '700', marginTop: 1 },
+    chipDivider: { width: 1, height: 30, backgroundColor: 'rgba(255,255,255,0.22)', marginHorizontal: 12 },
+
+    cardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: t.spacing.md },
+    link: { ...t.font.label, color: t.colors.primary },
+
+    chart: { flexDirection: 'row', alignItems: 'flex-end', gap: 6, height: 104 },
+    barCol: { flex: 1, alignItems: 'center', gap: 6 },
+    barValue: { fontSize: 9, color: t.colors.primary, fontWeight: '700' },
+    barTrack: { flex: 1, width: '100%', justifyContent: 'flex-end' },
+    barFill: { width: '100%', borderRadius: 4, minHeight: 4 },
+    barDay: { fontSize: 10, color: t.colors.textTertiary, fontWeight: '600' },
+    chartEmpty: { color: t.colors.textSecondary, fontSize: 13, textAlign: 'center', paddingVertical: 16 },
+
+    catGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: t.spacing.sm },
+    catChip: { flex: 1, minWidth: '46%', backgroundColor: t.colors.cardAlt, borderRadius: t.radius.lg, padding: 14, gap: 8, flexDirection: 'row', alignItems: 'center' },
+    catName: { ...t.font.caption, color: t.colors.textSecondary },
+    catPct: { fontSize: 18, fontWeight: '800', color: t.colors.text },
+
+    quickRow: { flexDirection: 'row', gap: t.spacing.md },
+    quickCard: { flex: 1, gap: 10 },
+    quickIcon: { width: 38, height: 38, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+    quickTitle: { ...t.font.label, color: t.colors.text },
+    quickVal: { fontSize: 18, fontWeight: '800', color: t.colors.text },
+    quickSub: { ...t.font.caption, color: t.colors.textSecondary },
+
+    txRow: { flexDirection: 'row', alignItems: 'center', gap: t.spacing.md, paddingVertical: 10 },
+    txDivider: { borderTopWidth: 1, borderTopColor: t.colors.border },
+    txInfo: { flex: 1, minWidth: 0 },
+    txLabel: { ...t.font.body, color: t.colors.text, fontWeight: '600' },
+    txDate: { ...t.font.caption, color: t.colors.textTertiary, marginTop: 2 },
+    txAmt: { fontSize: 14, fontWeight: '700' },
+    emptyTxt: { color: t.colors.textSecondary, fontSize: 14, textAlign: 'center', paddingVertical: 18 },
+  });
+
+  return (
+    <View style={{ flex: 1, backgroundColor: t.colors.bg }}>
+      <AppHeader
+        title="Dirham"
+        subtitle="Votre argent, sous contrôle"
+        large
+        right={<HeaderIconButton icon="settings-outline" onPress={() => router.push('/settings')} />}
+      />
+
+      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+        {/* Hero balance */}
         <View style={s.hero}>
           <View style={s.heroTop}>
             <View>
               <Text style={s.heroMonth}>{monthLabel}</Text>
-              <Text style={s.heroBalance}>{fmt(balance)}</Text>
+              <Text style={s.heroBalance}>{fmtMAD(balance)}</Text>
               <Text style={s.heroSub}>Solde net du mois</Text>
             </View>
             {savingPct > 0 && (
@@ -73,222 +119,127 @@ export default function DashboardScreen() {
               </View>
             )}
           </View>
-          <View style={s.heroChips}>
+          <View style={s.chips}>
             <View style={s.chip}>
-              <View style={[s.chipDot, { backgroundColor: Colors.success }]} />
+              <View style={[s.chipDot, { backgroundColor: t.colors.success }]} />
               <View>
                 <Text style={s.chipLbl}>Revenus</Text>
-                <Text style={s.chipAmt}>+{fmt(monthlyTotals.income)}</Text>
+                <Text style={s.chipAmt}>{fmtSigned(monthlyTotals.income)}</Text>
               </View>
             </View>
             <View style={s.chipDivider} />
             <View style={s.chip}>
-              <View style={[s.chipDot, { backgroundColor: Colors.danger }]} />
+              <View style={[s.chipDot, { backgroundColor: '#FFD0D8' }]} />
               <View>
                 <Text style={s.chipLbl}>Dépenses</Text>
-                <Text style={s.chipAmt}>-{fmt(monthlyTotals.expenses)}</Text>
+                <Text style={s.chipAmt}>{fmtSigned(-monthlyTotals.expenses)}</Text>
               </View>
             </View>
           </View>
         </View>
 
-        {/* ── 7-day spending chart ── */}
-        <View style={s.card}>
-          <Text style={s.cardTitle}>Dépenses — 7 derniers jours</Text>
+        {/* 7-day spending chart */}
+        <Card>
+          <SectionLabel>Dépenses — 7 derniers jours</SectionLabel>
           <View style={s.chart}>
             {dailySpend.map((amt, i) => {
-              const isToday = i === todayIdx;
-              const barH = Math.max((amt / maxSpend) * 80, amt > 0 ? 6 : 0);
+              const isToday = i === 6;
+              const barH = amt > 0 ? Math.max((amt / maxSpend) * 78, 6) : 0;
               return (
                 <View key={i} style={s.barCol}>
-                  {isToday && amt > 0 && (
-                    <Text style={s.barValue}>{fmt(amt)}</Text>
-                  )}
+                  {isToday && amt > 0 && <Text style={s.barValue}>{fmtMAD(amt)}</Text>}
                   <View style={s.barTrack}>
-                    <View
-                      style={[
-                        s.barFill,
-                        { height: barH, backgroundColor: isToday ? Colors.primary : Colors.primaryLight },
-                      ]}
-                    />
+                    <View style={[s.barFill, { height: barH, backgroundColor: isToday ? t.colors.primary : t.colors.primarySoft }]} />
                   </View>
-                  <Text style={[s.barDay, isToday && { color: Colors.primary, fontWeight: '700' }]}>
-                    {days[i].day}
-                  </Text>
+                  <Text style={[s.barDay, isToday && { color: t.colors.primary, fontWeight: '800' }]}>{days[i].day}</Text>
                 </View>
               );
             })}
           </View>
-          {dailySpend.every(v => v === 0) && (
-            <Text style={s.chartEmpty}>Aucune dépense cette semaine.</Text>
-          )}
-        </View>
+          {dailySpend.every(v => v === 0) && <Text style={s.chartEmpty}>Aucune dépense cette semaine.</Text>}
+        </Card>
 
-        {/* ── Category breakdown ── */}
+        {/* Category breakdown */}
         {topCats.length > 0 && (
-          <View style={s.card}>
-            <Text style={s.cardTitle}>Répartition des dépenses</Text>
+          <Card>
+            <SectionLabel>Répartition des dépenses</SectionLabel>
             <View style={s.catGrid}>
               {topCats.map(([key, val]) => {
                 const cat = getCategoryByKey(key);
-                const pct = Math.round((val / totalSpent) * 100);
                 return (
                   <View key={key} style={s.catChip}>
-                    <Text style={s.catEmoji}>{cat.emoji}</Text>
-                    <Text style={s.catName} numberOfLines={1}>{cat.label}</Text>
-                    <Text style={s.catPct}>{pct}%</Text>
+                    <CategoryIcon category={cat} size={38} />
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={s.catName} numberOfLines={1}>{cat.label}</Text>
+                      <Text style={s.catPct}>{Math.round((val / totalSpent) * 100)}%</Text>
+                    </View>
                   </View>
                 );
               })}
             </View>
-          </View>
+          </Card>
         )}
 
-        {/* ── Portfolio snapshot ── */}
-        {holdings.length > 0 && (
-          <View style={s.card}>
-            <Text style={s.cardTitle}>Portefeuille BVC</Text>
-            <View style={s.portRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={s.portVal}>{fmt(portfolioValue)}</Text>
-                <Text style={s.portSub}>Valeur totale · {holdings.length} action{holdings.length > 1 ? 's' : ''}</Text>
-              </View>
-              <View style={[s.gainBadge, { backgroundColor: portfolioGain >= 0 ? Colors.successLight : Colors.dangerLight }]}>
-                <Text style={[s.gainTxt, { color: portfolioGain >= 0 ? Colors.success : Colors.danger }]}>
-                  {portfolioGain >= 0 ? '▲' : '▼'} {fmt(Math.abs(portfolioGain))}
-                </Text>
-              </View>
+        {/* Quick links: Portfolio + Budget */}
+        <View style={s.quickRow}>
+          <Card style={s.quickCard} onPress={() => router.push('/(tabs)/portfolio')}>
+            <View style={[s.quickIcon, { backgroundColor: t.colors.successSoft }]}>
+              <Ionicons name="stats-chart" size={20} color={t.colors.success} />
             </View>
-          </View>
-        )}
+            <Text style={s.quickTitle}>Portefeuille</Text>
+            {holdings.length > 0 ? (
+              <>
+                <Text style={s.quickVal}>{fmtMAD(portfolioValue)}</Text>
+                <Text style={[s.quickSub, { color: portfolioGain >= 0 ? t.colors.success : t.colors.danger }]}>
+                  {fmtSigned(portfolioGain)} BVC
+                </Text>
+              </>
+            ) : (
+              <Text style={s.quickSub}>Ajouter vos actions BVC</Text>
+            )}
+          </Card>
+          <Card style={s.quickCard} onPress={() => router.push('/budget')}>
+            <View style={[s.quickIcon, { backgroundColor: t.colors.primarySoft }]}>
+              <Ionicons name="pie-chart" size={20} color={t.colors.primary} />
+            </View>
+            <Text style={s.quickTitle}>Budget 50/30/20</Text>
+            <Text style={s.quickVal}>{fmtMAD(monthlyTotals.expenses)}</Text>
+            <Text style={s.quickSub}>Dépensé ce mois</Text>
+          </Card>
+        </View>
 
-        {/* ── Recent transactions ── */}
-        <View style={[s.card, { marginBottom: 0 }]}>
-          <Text style={s.cardTitle}>Récentes</Text>
+        {/* Recent transactions */}
+        <Card>
+          <View style={s.cardHead}>
+            <SectionLabel style={{ marginBottom: 0 }}>Récentes</SectionLabel>
+            {transactions.length > 0 && (
+              <TouchableOpacity onPress={() => router.push('/transactions')}>
+                <Text style={s.link}>Voir tout →</Text>
+              </TouchableOpacity>
+            )}
+          </View>
           {transactions.length === 0 ? (
             <Text style={s.emptyTxt}>Appuyez sur + pour ajouter une transaction.</Text>
           ) : (
-            transactions.slice(0, 5).map(t => {
-              const cat = getCategoryByKey(t.category);
-              const isIncome = t.type === 'income';
+            transactions.slice(0, 5).map((tx, idx) => {
+              const cat = getCategoryByKey(tx.category);
+              const isIncome = tx.type === 'income';
               return (
-                <View key={t.id} style={s.txRow}>
-                  <View style={s.txIcon}><Text style={s.txEmoji}>{cat.emoji}</Text></View>
+                <View key={tx.id} style={[s.txRow, idx > 0 && s.txDivider]}>
+                  <CategoryIcon category={cat} size={40} />
                   <View style={s.txInfo}>
                     <Text style={s.txLabel} numberOfLines={1}>{cat.label}</Text>
-                    <Text style={s.txDate} numberOfLines={1}>{t.date}{t.note ? ` · ${t.note}` : ''}</Text>
+                    <Text style={s.txDate} numberOfLines={1}>{tx.date}{tx.note ? ` · ${tx.note}` : ''}</Text>
                   </View>
-                  <Text style={[s.txAmt, { color: isIncome ? Colors.success : Colors.danger }]} numberOfLines={1}>
-                    {isIncome ? '+' : '-'}{fmt(t.amount)}
+                  <Text style={[s.txAmt, { color: isIncome ? t.colors.success : t.colors.text }]} numberOfLines={1}>
+                    {isIncome ? '+' : '−'}{fmtMAD(tx.amount)}
                   </Text>
                 </View>
               );
             })
           )}
-        </View>
-
+        </Card>
       </ScrollView>
-
-      <TouchableOpacity style={s.fab} onPress={openQuickAdd} activeOpacity={0.85}>
-        <Text style={s.fabTxt}>+</Text>
-      </TouchableOpacity>
-    </SafeAreaView>
+    </View>
   );
 }
-
-const s = StyleSheet.create({
-  safe:   { flex: 1, backgroundColor: Colors.background },
-  scroll: { paddingBottom: 110 },
-
-  // Hero
-  hero: {
-    backgroundColor: Colors.primary,
-    marginHorizontal: 16, marginTop: 14, marginBottom: 4,
-    borderRadius: 24, padding: 22, gap: 16,
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 8,
-  },
-  heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  heroMonth: { color: 'rgba(255,255,255,0.65)', fontSize: 12, fontWeight: '600', letterSpacing: 0.3, textTransform: 'uppercase', marginBottom: 4 },
-  heroBalance: { color: '#fff', fontSize: 40, fontWeight: '800', letterSpacing: -1.5, lineHeight: 44 },
-  heroSub: { color: 'rgba(255,255,255,0.6)', fontSize: 12, marginTop: 4 },
-  savePill: { backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 14, paddingHorizontal: 12, paddingVertical: 10, alignItems: 'center' },
-  savePillTxt: { color: '#fff', fontSize: 18, fontWeight: '800' },
-  savePillSub: { color: 'rgba(255,255,255,0.7)', fontSize: 10, fontWeight: '600' },
-  heroChips: {
-    flexDirection: 'row', backgroundColor: 'rgba(0,0,0,0.18)',
-    borderRadius: 16, padding: 14, alignItems: 'center',
-  },
-  chip: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  chipDot: { width: 8, height: 8, borderRadius: 4 },
-  chipLbl: { color: 'rgba(255,255,255,0.65)', fontSize: 11, fontWeight: '500' },
-  chipAmt: { color: '#fff', fontSize: 15, fontWeight: '700', marginTop: 1 },
-  chipDivider: { width: 1, height: 32, backgroundColor: 'rgba(255,255,255,0.2)', marginHorizontal: 12 },
-
-  // Card
-  card: {
-    backgroundColor: Colors.card,
-    marginHorizontal: 16, marginTop: 12,
-    borderRadius: 20, padding: 18,
-    shadowColor: '#0A1628',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 3,
-  },
-  cardTitle: {
-    fontSize: 11, fontWeight: '700', color: Colors.textSecondary,
-    textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 14,
-  },
-
-  // Chart
-  chart: { flexDirection: 'row', alignItems: 'flex-end', gap: 6, height: 110 },
-  barCol: { flex: 1, alignItems: 'center', gap: 4 },
-  barValue: { fontSize: 9, color: Colors.primary, fontWeight: '700', textAlign: 'center' },
-  barTrack: { flex: 1, width: '100%', justifyContent: 'flex-end' },
-  barFill: { width: '100%', borderRadius: 4 },
-  barDay: { fontSize: 10, color: Colors.textSecondary, fontWeight: '500' },
-  chartEmpty: { color: Colors.textSecondary, fontSize: 13, textAlign: 'center', paddingVertical: 8 },
-
-  // Categories
-  catGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  catChip: {
-    flex: 1, minWidth: '44%', backgroundColor: Colors.background,
-    borderRadius: 16, padding: 14, gap: 6,
-  },
-  catEmoji: { fontSize: 22 },
-  catName: { fontSize: 12, color: Colors.textSecondary, fontWeight: '500' },
-  catPct: { fontSize: 22, fontWeight: '800', color: Colors.text },
-
-  // Portfolio
-  portRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  portVal: { fontSize: 26, fontWeight: '800', color: Colors.text },
-  portSub: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
-  gainBadge: { borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 },
-  gainTxt: { fontSize: 14, fontWeight: '700' },
-
-  // Transactions
-  txRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: Colors.border },
-  txIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: Colors.background, justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
-  txEmoji: { fontSize: 18 },
-  txInfo: { flex: 1, minWidth: 0 },
-  txLabel: { fontSize: 14, color: Colors.text, fontWeight: '600' },
-  txDate: { fontSize: 11, color: Colors.textSecondary, marginTop: 2 },
-  txAmt: { fontSize: 14, fontWeight: '700', flexShrink: 0 },
-  emptyTxt: { color: Colors.textSecondary, fontSize: 14, textAlign: 'center', paddingVertical: 16 },
-
-  // FAB
-  fab: {
-    position: 'absolute', bottom: 90, right: 20,
-    width: 56, height: 56, borderRadius: 28,
-    backgroundColor: Colors.primary,
-    justifyContent: 'center', alignItems: 'center',
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4, shadowRadius: 16, elevation: 10,
-  },
-  fabTxt: { color: '#fff', fontSize: 28, lineHeight: 32 },
-});

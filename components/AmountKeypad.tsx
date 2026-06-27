@@ -1,14 +1,19 @@
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Colors } from '../constants/colors';
+import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '../theme/ThemeProvider';
 
-const KEYS = ['1','2','3','4','5','6','7','8','9','.','0','⌫'];
+const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', '⌫'];
 
 interface Props {
   value: string;
   onChange: (val: string) => void;
+  tint?: string;
 }
 
-export default function AmountKeypad({ value, onChange }: Props) {
+export default function AmountKeypad({ value, onChange, tint }: Props) {
+  const t = useTheme();
+  const accent = tint ?? t.colors.text;
+
   function press(key: string) {
     if (key === '⌫') { onChange(value.length > 1 ? value.slice(0, -1) : '0'); return; }
     if (key === '.' && value.includes('.')) return;
@@ -17,27 +22,27 @@ export default function AmountKeypad({ value, onChange }: Props) {
     onChange(value === '0' && key !== '.' ? key : value + key);
   }
 
+  const s = StyleSheet.create({
+    wrap: { alignItems: 'center', width: '100%' },
+    display: { fontSize: 52, fontWeight: '800', color: accent, marginBottom: 4, letterSpacing: -1 },
+    cur: { fontSize: 18, color: t.colors.textSecondary, fontWeight: '600' },
+    grid: { flexDirection: 'row', flexWrap: 'wrap', width: '100%' },
+    key: { width: '33.33%', height: 66, justifyContent: 'center', alignItems: 'center' },
+    kt: { fontSize: 26, color: t.colors.text, fontWeight: '600' },
+  });
+
   return (
     <View style={s.wrap}>
-      <Text style={s.display}>
-        {value} <Text style={s.cur}>MAD</Text>
-      </Text>
+      <Text style={s.display}>{value}<Text style={s.cur}>  MAD</Text></Text>
       <View style={s.grid}>
         {KEYS.map(k => (
-          <TouchableOpacity key={k} style={s.key} onPress={() => press(k)}>
-            <Text style={[s.kt, k === '⌫' && { color: Colors.danger }]}>{k}</Text>
+          <TouchableOpacity key={k} style={s.key} onPress={() => press(k)} activeOpacity={0.6}>
+            {k === '⌫'
+              ? <Ionicons name="backspace-outline" size={26} color={t.colors.danger} />
+              : <Text style={s.kt}>{k}</Text>}
           </TouchableOpacity>
         ))}
       </View>
     </View>
   );
 }
-
-const s = StyleSheet.create({
-  wrap: { alignItems: 'center' },
-  display: { fontSize: 42, fontWeight: '700', color: Colors.text, marginBottom: 20 },
-  cur: { fontSize: 18, color: Colors.textSecondary, fontWeight: '400' },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', width: 288 },
-  key: { width: 96, height: 64, justifyContent: 'center', alignItems: 'center', borderWidth: 0.5, borderColor: Colors.border },
-  kt: { fontSize: 22, color: Colors.text, fontWeight: '500' },
-});

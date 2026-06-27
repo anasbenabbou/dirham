@@ -1,135 +1,94 @@
 import { useEffect, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, Modal, TextInput, StyleSheet, Alert } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, FlatList, StyleSheet, Alert } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useGoalsStore } from '../../store/useGoalsStore';
 import GoalCard from '../../components/GoalCard';
-import { Colors } from '../../constants/colors';
-
-const fmt = (n: number) =>
-  n.toLocaleString('fr-MA', { style: 'currency', currency: 'MAD', maximumFractionDigits: 0 });
+import { useTheme } from '../../theme/ThemeProvider';
+import { fmtMAD } from '../../lib/format';
+import { AppHeader, HeaderIconButton, Card, EmptyState, Field, Button, Sheet } from '../../components/ui';
 
 export default function GoalsScreen() {
+  const t = useTheme();
+  const { goals, load, addGoal } = useGoalsStore();
   const [showNew, setShowNew] = useState(false);
   const [name, setName] = useState('');
   const [target, setTarget] = useState('');
   const [date, setDate] = useState('');
-  const { goals, load, addGoal } = useGoalsStore();
 
   useEffect(() => { load(); }, []);
 
-  const totalSaved   = goals.reduce((s, g) => s + g.current_amount, 0);
+  const totalSaved = goals.reduce((s, g) => s + g.current_amount, 0);
   const totalTargets = goals.reduce((s, g) => s + g.target_amount, 0);
   const done = goals.filter(g => g.completed).length;
 
   function handleAdd() {
-    const t = parseFloat(target);
-    if (!name.trim() || isNaN(t) || t <= 0) {
-      Alert.alert('Erreur', 'Entrez un nom et un montant valide.'); return;
-    }
-    addGoal({ name: name.trim(), target_amount: t, target_date: date.trim() || null });
-    setName(''); setTarget(''); setDate('');
-    setShowNew(false);
+    const tg = parseFloat(target);
+    if (!name.trim() || isNaN(tg) || tg <= 0) { Alert.alert('Erreur', 'Entrez un nom et un montant valide.'); return; }
+    addGoal({ name: name.trim(), target_amount: tg, target_date: date.trim() || null });
+    setName(''); setTarget(''); setDate(''); setShowNew(false);
   }
 
+  const s = StyleSheet.create({
+    summary: { flexDirection: 'row', alignItems: 'center', marginBottom: t.spacing.xs },
+    item: { flex: 1, alignItems: 'center', gap: 3 },
+    amt: { fontSize: 17, fontWeight: '800', color: t.colors.text },
+    label: { ...t.font.micro, color: t.colors.textTertiary },
+    divider: { width: 1, height: 34, backgroundColor: t.colors.border },
+    list: { padding: t.spacing.lg, paddingBottom: 120, gap: t.spacing.md },
+    sheetRow: { flexDirection: 'row', gap: t.spacing.md, marginTop: t.spacing.lg },
+    form: { gap: t.spacing.lg },
+  });
+
   return (
-    <SafeAreaView style={s.container}>
-      {/* Summary */}
-      {goals.length > 0 && (
-        <View style={s.summary}>
-          <View style={s.sumItem}>
-            <Text style={s.sumAmt}>{fmt(totalSaved)}</Text>
-            <Text style={s.sumLabel}>Épargné</Text>
-          </View>
-          <View style={s.sumDivider} />
-          <View style={s.sumItem}>
-            <Text style={s.sumAmt}>{fmt(totalTargets)}</Text>
-            <Text style={s.sumLabel}>Objectifs</Text>
-          </View>
-          <View style={s.sumDivider} />
-          <View style={s.sumItem}>
-            <Text style={[s.sumAmt, { color: Colors.success }]}>{done}</Text>
-            <Text style={s.sumLabel}>Complétés</Text>
-          </View>
-        </View>
-      )}
+    <View style={{ flex: 1, backgroundColor: t.colors.bg }}>
+      <AppHeader title="Objectifs" large right={<HeaderIconButton icon="add" filled onPress={() => setShowNew(true)} />} />
 
       <FlatList
         data={goals}
         keyExtractor={g => String(g.id)}
         renderItem={({ item }) => <GoalCard goal={item} />}
         contentContainerStyle={s.list}
+        showsVerticalScrollIndicator={false}
+        ListHeaderComponent={
+          goals.length > 0 ? (
+            <Card style={s.summary as any}>
+              <View style={s.item}>
+                <Text style={s.amt}>{fmtMAD(totalSaved)}</Text>
+                <Text style={s.label}>Épargné</Text>
+              </View>
+              <View style={s.divider} />
+              <View style={s.item}>
+                <Text style={s.amt}>{fmtMAD(totalTargets)}</Text>
+                <Text style={s.label}>Objectifs</Text>
+              </View>
+              <View style={s.divider} />
+              <View style={s.item}>
+                <Text style={[s.amt, { color: t.colors.success }]}>{done}</Text>
+                <Text style={s.label}>Complétés</Text>
+              </View>
+            </Card>
+          ) : null
+        }
         ListEmptyComponent={
-          <View style={s.emptyWrap}>
-            <Text style={s.emptyIcon}>🎯</Text>
-            <Text style={s.emptyTitle}>Aucun objectif</Text>
-            <Text style={s.emptyTxt}>Créez votre premier objectif d'épargne !</Text>
-          </View>
+          <EmptyState
+            icon={<Ionicons name="flag-outline" size={30} color={t.colors.textSecondary} />}
+            title="Aucun objectif"
+            subtitle="Créez votre premier objectif d'épargne avec le bouton +."
+          />
         }
       />
 
-      <TouchableOpacity style={s.fab} onPress={() => setShowNew(true)}>
-        <Text style={s.fabTxt}>+</Text>
-      </TouchableOpacity>
-
-      <Modal visible={showNew} animationType="slide" presentationStyle="pageSheet">
-        <SafeAreaView style={s.modal}>
-          <View style={s.modalHeader}>
-            <Text style={s.modalTitle}>Nouvel objectif</Text>
-            <TouchableOpacity onPress={() => setShowNew(false)}><Text style={s.closeBtn}>✕</Text></TouchableOpacity>
-          </View>
-
-          <View style={s.fieldGroup}>
-            <Text style={s.fieldLabel}>Nom de l'objectif</Text>
-            <TextInput style={s.input} placeholder="Vacances, Voiture, MacBook…" placeholderTextColor={Colors.textSecondary} value={name} onChangeText={setName} autoFocus />
-          </View>
-          <View style={s.fieldGroup}>
-            <Text style={s.fieldLabel}>Montant cible (MAD)</Text>
-            <TextInput style={[s.input, s.bigInput]} placeholder="10 000" placeholderTextColor={Colors.textSecondary} value={target} onChangeText={setTarget} keyboardType="decimal-pad" />
-          </View>
-          <View style={s.fieldGroup}>
-            <Text style={s.fieldLabel}>Date cible (optionnel)</Text>
-            <TextInput style={s.input} placeholder="2025-12-31" placeholderTextColor={Colors.textSecondary} value={date} onChangeText={setDate} />
-          </View>
-
-          <TouchableOpacity style={s.addBtn} onPress={handleAdd}>
-            <Text style={s.addBtnTxt}>Créer l'objectif ✓</Text>
-          </TouchableOpacity>
-        </SafeAreaView>
-      </Modal>
-    </SafeAreaView>
+      <Sheet visible={showNew} onClose={() => setShowNew(false)} title="Nouvel objectif">
+        <View style={s.form}>
+          <Field label="Nom de l'objectif" placeholder="Vacances, Voiture, MacBook…" value={name} onChangeText={setName} autoFocus />
+          <Field label="Montant cible (MAD)" placeholder="10 000" value={target} onChangeText={setTarget} keyboardType="decimal-pad" big />
+          <Field label="Date cible (optionnel)" placeholder="2026-12-31" value={date} onChangeText={setDate} />
+        </View>
+        <View style={s.sheetRow}>
+          <Button label="Annuler" variant="secondary" onPress={() => setShowNew(false)} style={{ flex: 1 }} full={false} />
+          <Button label="Créer" icon="checkmark" onPress={handleAdd} style={{ flex: 2 }} full={false} />
+        </View>
+      </Sheet>
+    </View>
   );
 }
-
-const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  summary: {
-    flexDirection: 'row', backgroundColor: Colors.card, marginHorizontal: 16, marginTop: 12,
-    borderRadius: 16, padding: 16, alignItems: 'center',
-    shadowColor: '#9098B1', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
-  },
-  sumItem: { flex: 1, alignItems: 'center' },
-  sumAmt: { fontSize: 18, fontWeight: '800', color: Colors.text },
-  sumLabel: { fontSize: 11, color: Colors.textSecondary, fontWeight: '600', marginTop: 2, textTransform: 'uppercase' },
-  sumDivider: { width: 1, height: 36, backgroundColor: Colors.border },
-  list: { padding: 16, paddingBottom: 110 },
-  emptyWrap: { alignItems: 'center', marginTop: 80, gap: 8 },
-  emptyIcon: { fontSize: 48, marginBottom: 8 },
-  emptyTitle: { fontSize: 18, fontWeight: '700', color: Colors.text },
-  emptyTxt: { color: Colors.textSecondary, fontSize: 14 },
-  fab: {
-    position: 'absolute', bottom: 90, right: 20, width: 58, height: 58, borderRadius: 29,
-    backgroundColor: Colors.success, justifyContent: 'center', alignItems: 'center',
-    shadowColor: Colors.success, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 10,
-  },
-  fabTxt: { color: '#fff', fontSize: 30, lineHeight: 34 },
-  modal: { flex: 1, backgroundColor: Colors.background },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  modalTitle: { fontSize: 20, fontWeight: '800', color: Colors.text },
-  closeBtn: { fontSize: 18, color: Colors.textSecondary, padding: 4 },
-  fieldGroup: { paddingHorizontal: 20, paddingTop: 20, gap: 6 },
-  fieldLabel: { fontSize: 12, fontWeight: '700', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
-  input: { borderWidth: 1.5, borderColor: Colors.border, borderRadius: 14, padding: 14, fontSize: 16, backgroundColor: Colors.card, color: Colors.text },
-  bigInput: { fontSize: 24, fontWeight: '700' },
-  addBtn: { backgroundColor: Colors.success, margin: 20, borderRadius: 16, padding: 18, alignItems: 'center', marginTop: 32 },
-  addBtnTxt: { color: '#fff', fontWeight: '700', fontSize: 16 },
-});

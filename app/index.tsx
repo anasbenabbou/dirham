@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, Animated, StyleSheet, Dimensions } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 
@@ -45,7 +46,7 @@ export default function SplashScreen() {
         <Animated.View style={[s.card, s.cardFront, { transform: [{ translateY: card1 }, { rotate: '2deg' }] }]}>
           <View style={s.cardHeader}>
             <Text style={s.cardBank}>Attijariwafa</Text>
-            <Text style={s.cardContactless}>))))</Text>
+            <Ionicons name="wifi" size={18} color="rgba(255,255,255,0.55)" style={{ transform: [{ rotate: '90deg' }] }} />
           </View>
           <View style={s.cardChip} />
           <Text style={s.cardNum}>•••• •••• •••• 4532</Text>

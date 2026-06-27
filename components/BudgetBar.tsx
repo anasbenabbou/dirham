@@ -1,66 +1,53 @@
 import { View, Text, StyleSheet } from 'react-native';
-import { Colors } from '../constants/colors';
-
-const fmt = (n: number) =>
-  n.toLocaleString('fr-MA', { style: 'currency', currency: 'MAD', maximumFractionDigits: 0 });
+import { getCategoryByKey } from '../constants/categories';
+import { useTheme } from '../theme/ThemeProvider';
+import { fmtMAD } from '../lib/format';
+import { Card, CategoryIcon, ProgressBar } from './ui';
 
 interface Props {
+  category: string;
   label: string;
-  emoji: string;
   spent: number;
   limit: number;
   accentColor?: string;
 }
 
-export default function BudgetBar({ label, emoji, spent, limit, accentColor = Colors.primary }: Props) {
+export default function BudgetBar({ category, label, spent, limit, accentColor }: Props) {
+  const t = useTheme();
   const pct = limit > 0 ? Math.min(spent / limit, 1) : 0;
-  const barColor = pct >= 1 ? Colors.danger : pct >= 0.85 ? Colors.warning : accentColor;
-  const overBudget = pct >= 1;
-  const nearLimit = pct >= 0.85 && !overBudget;
+  const over = pct >= 1;
+  const near = pct >= 0.85 && !over;
+  const barColor = over ? t.colors.danger : near ? t.colors.warning : (accentColor ?? t.colors.primary);
+  const cat = getCategoryByKey(category);
+
+  const s = StyleSheet.create({
+    card: { marginBottom: t.spacing.sm, gap: 10 },
+    topRow: { flexDirection: 'row', alignItems: 'center', gap: t.spacing.md },
+    label: { ...t.font.body, fontWeight: '600', color: t.colors.text, flex: 1 },
+    amounts: { ...t.font.label },
+    bottomRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    pctTxt: { ...t.font.caption, color: t.colors.textTertiary },
+    warn: { ...t.font.caption, fontWeight: '700' },
+    remaining: { ...t.font.caption, color: t.colors.textSecondary },
+  });
 
   return (
-    <View style={s.card}>
+    <Card style={s.card}>
       <View style={s.topRow}>
-        <View style={s.labelRow}>
-          <Text style={s.emoji}>{emoji}</Text>
-          <Text style={s.label}>{label}</Text>
-        </View>
+        <CategoryIcon category={cat} size={32} />
+        <Text style={s.label}>{label}</Text>
         <Text style={s.amounts}>
-          <Text style={{ color: overBudget ? Colors.danger : Colors.text }}>{fmt(spent)}</Text>
-          <Text style={{ color: Colors.textSecondary }}> / {fmt(limit)}</Text>
+          <Text style={{ color: over ? t.colors.danger : t.colors.text }}>{fmtMAD(spent)}</Text>
+          <Text style={{ color: t.colors.textTertiary }}> / {fmtMAD(limit)}</Text>
         </Text>
       </View>
-
-      <View style={s.track}>
-        <View style={[s.fill, { width: `${pct * 100}%` as any, backgroundColor: barColor }]} />
-      </View>
-
+      <ProgressBar progress={pct} color={barColor} />
       <View style={s.bottomRow}>
         <Text style={s.pctTxt}>{Math.round(pct * 100)}% utilisé</Text>
-        {overBudget && <Text style={[s.warn, { color: Colors.danger }]}>⚠ Limite dépassée</Text>}
-        {nearLimit && <Text style={[s.warn, { color: Colors.warning }]}>⚠ Proche de la limite</Text>}
-        {!overBudget && !nearLimit && limit > 0 && (
-          <Text style={s.remaining}>{fmt(limit - spent)} restant</Text>
-        )}
+        {over && <Text style={[s.warn, { color: t.colors.danger }]}>⚠ Limite dépassée</Text>}
+        {near && <Text style={[s.warn, { color: t.colors.warning }]}>⚠ Proche de la limite</Text>}
+        {!over && !near && limit > 0 && <Text style={s.remaining}>{fmtMAD(limit - spent)} restant</Text>}
       </View>
-    </View>
+    </Card>
   );
 }
-
-const s = StyleSheet.create({
-  card: {
-    backgroundColor: Colors.card, borderRadius: 16, padding: 14, marginBottom: 8, gap: 10,
-    shadowColor: '#9098B1', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
-  },
-  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  labelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  emoji: { fontSize: 18 },
-  label: { fontSize: 14, fontWeight: '600', color: Colors.text },
-  amounts: { fontSize: 13, fontWeight: '600' },
-  track: { height: 8, backgroundColor: Colors.border, borderRadius: 4, overflow: 'hidden' },
-  fill: { height: 8, borderRadius: 4 },
-  bottomRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  pctTxt: { fontSize: 11, color: Colors.textSecondary },
-  warn: { fontSize: 11, fontWeight: '700' },
-  remaining: { fontSize: 11, color: Colors.textSecondary },
-});

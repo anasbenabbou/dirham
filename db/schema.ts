@@ -48,4 +48,8 @@ export function initDb(): void {
     color TEXT NOT NULL DEFAULT '#0057FF',
     last_four TEXT DEFAULT ''
   )`);
+  db.execSync(`CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  )`);
 }
