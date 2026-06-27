@@ -36,9 +36,9 @@ export default function TransactionsScreen() {
 
   const s = StyleSheet.create({
     summary: { flexDirection: 'row', marginTop: t.spacing.sm, marginBottom: t.spacing.xs },
-    cell: { flex: 1, alignItems: 'center', gap: 3 },
+    cell: { flex: 1, alignItems: 'center', gap: 4 },
     cellLabel: { ...t.font.micro, color: t.colors.textTertiary },
-    cellVal: { ...t.font.heading },
+    cellVal: { fontSize: 15, fontWeight: '700', letterSpacing: -0.3 },
     divider: { width: 1, backgroundColor: t.colors.border, marginVertical: 4 },
     sectionHeader: { ...t.font.micro, color: t.colors.textTertiary, paddingHorizontal: t.spacing.lg, paddingTop: t.spacing.lg, paddingBottom: t.spacing.sm, backgroundColor: t.colors.bg },
     list: { paddingHorizontal: t.spacing.lg, paddingBottom: 40 },

@@ -26,7 +26,6 @@ export default function DashboardScreen() {
   useEffect(() => { loadMonth(currentMonth); loadHoldings(); }, []);
 
   const balance = monthlyTotals.income - monthlyTotals.expenses;
-  const savingPct = monthlyTotals.income > 0 ? Math.round((balance / monthlyTotals.income) * 100) : 0;
 
   const portfolioValue = holdings.reduce((s, h) => s + h.shares * (quotes[h.ticker]?.price ?? h.buy_price), 0);
   const portfolioGain = portfolioValue - holdings.reduce((s, h) => s + h.shares * h.buy_price, 0);
@@ -48,13 +47,9 @@ export default function DashboardScreen() {
       backgroundColor: t.colors.primary, borderRadius: t.radius.xxl, padding: t.spacing.xl, gap: t.spacing.lg,
       ...t.shadow.float, shadowColor: t.colors.primary,
     },
-    heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
     heroMonth: { ...t.font.micro, color: 'rgba(255,255,255,0.7)', marginBottom: 6 },
     heroBalance: { color: '#fff', fontSize: 40, fontWeight: '800', letterSpacing: -1.5, lineHeight: 44 },
     heroSub: { color: 'rgba(255,255,255,0.7)', fontSize: 12, marginTop: 4 },
-    savePill: { backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: t.radius.md, paddingHorizontal: 12, paddingVertical: 8, alignItems: 'center' },
-    savePillTxt: { color: '#fff', fontSize: 18, fontWeight: '800' },
-    savePillSub: { color: 'rgba(255,255,255,0.75)', fontSize: 10, fontWeight: '600' },
     chips: { flexDirection: 'row', backgroundColor: 'rgba(0,0,0,0.18)', borderRadius: t.radius.lg, padding: 14, alignItems: 'center' },
     chip: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
     chipDot: { width: 8, height: 8, borderRadius: 4 },
@@ -106,18 +101,10 @@ export default function DashboardScreen() {
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
         {/* Hero balance */}
         <View style={s.hero}>
-          <View style={s.heroTop}>
-            <View>
-              <Text style={s.heroMonth}>{monthLabel}</Text>
-              <Text style={s.heroBalance}>{fmtMAD(balance)}</Text>
-              <Text style={s.heroSub}>Solde net du mois</Text>
-            </View>
-            {savingPct > 0 && (
-              <View style={s.savePill}>
-                <Text style={s.savePillTxt}>+{savingPct}%</Text>
-                <Text style={s.savePillSub}>épargne</Text>
-              </View>
-            )}
+          <View>
+            <Text style={s.heroMonth}>{monthLabel}</Text>
+            <Text style={s.heroBalance}>{fmtMAD(balance)}</Text>
+            <Text style={s.heroSub}>Solde net du mois</Text>
           </View>
           <View style={s.chips}>
             <View style={s.chip}>

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import {
   Transaction, insertTransaction, getTransactions,
-  deleteTransaction, getMonthlyTotals, getMonthlyByCategory,
+  updateTransaction, deleteTransaction, getMonthlyTotals, getMonthlyByCategory,
 } from '../db/transactions';
 
 function thisMonth(): string {
@@ -15,6 +15,7 @@ interface TransactionStore {
   currentMonth: string;
   loadMonth: (month: string) => void;
   addTransaction: (t: Omit<Transaction, 'id'>) => void;
+  editTransaction: (t: Transaction) => void;
   removeTransaction: (id: number) => void;
 }
 
@@ -35,6 +36,11 @@ export const useTransactionStore = create<TransactionStore>((set, get) => ({
 
   addTransaction(t) {
     insertTransaction(t);
+    get().loadMonth(get().currentMonth);
+  },
+
+  editTransaction(t) {
+    updateTransaction(t);
     get().loadMonth(get().currentMonth);
   },
 

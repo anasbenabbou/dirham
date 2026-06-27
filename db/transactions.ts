@@ -23,6 +23,13 @@ export function getTransactions(month: string): Transaction[] {
   );
 }
 
+export function updateTransaction(t: Transaction): void {
+  getDb().runSync(
+    `UPDATE transactions SET amount=?, category=?, note=?, date=?, type=? WHERE id=?`,
+    [t.amount, t.category, t.note, t.date, t.type, t.id]
+  );
+}
+
 export function deleteTransaction(id: number): void {
   getDb().runSync(`DELETE FROM transactions WHERE id = ?`, [id]);
 }
