@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet } from 'react-native';
-import { getCategoryByKey } from '../constants/categories';
+import { Ionicons } from '@expo/vector-icons';
+import { getCategoryByKey } from '../db/categories';
 import { useTheme } from '../theme/ThemeProvider';
 import { fmtMAD } from '../lib/format';
 import { Card, CategoryIcon, ProgressBar } from './ui';
@@ -10,9 +11,11 @@ interface Props {
   spent: number;
   limit: number;
   accentColor?: string;
+  custom?: boolean;
+  onPress?: () => void;
 }
 
-export default function BudgetBar({ category, label, spent, limit, accentColor }: Props) {
+export default function BudgetBar({ category, label, spent, limit, accentColor, custom, onPress }: Props) {
   const t = useTheme();
   const pct = limit > 0 ? Math.min(spent / limit, 1) : 0;
   const over = pct >= 1;
@@ -32,10 +35,13 @@ export default function BudgetBar({ category, label, spent, limit, accentColor }
   });
 
   return (
-    <Card style={s.card}>
+    <Card style={s.card} onPress={onPress}>
       <View style={s.topRow}>
         <CategoryIcon category={cat} size={32} />
-        <Text style={s.label}>{label}</Text>
+        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Text style={s.label} numberOfLines={1}>{label}</Text>
+          {custom && <Ionicons name="create-outline" size={13} color={t.colors.primary} />}
+        </View>
         <Text style={s.amounts}>
           <Text style={{ color: over ? t.colors.danger : t.colors.text }}>{fmtMAD(spent)}</Text>
           <Text style={{ color: t.colors.textTertiary }}> / {fmtMAD(limit)}</Text>

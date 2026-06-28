@@ -1,19 +1,28 @@
-import { useState } from 'react';
-import { View, Text, Modal, TextInput, ScrollView, TouchableOpacity, Alert, StyleSheet } from 'react-native';
+import { useState, useEffect } from 'react';
+import { View, Text, Image, Modal, TextInput, ScrollView, TouchableOpacity, Alert, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Transaction } from '../db/transactions';
-import { getCategoryByKey, EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '../constants/categories';
+import { getCategoryByKey } from '../db/categories';
+import { useCategoriesStore } from '../store/useCategoriesStore';
 import { useTransactionStore } from '../store/useTransactionStore';
 import { useTheme } from '../theme/ThemeProvider';
 import { fmtMAD } from '../lib/format';
-import { Card, CategoryIcon, Badge } from './ui';
+import { pickReceipt, captureReceipt } from '../lib/media';
+import { haptic } from '../lib/haptics';
+import { useKeyboardHeight } from '../lib/useKeyboard';
+import { Card, CategoryIcon, Badge, useToast } from './ui';
 
 type TxType = 'income' | 'expense';
 
 export default function TransactionItem({ transaction: tx }: { transaction: Transaction }) {
   const theme = useTheme();
-  const { editTransaction, removeTransaction } = useTransactionStore();
+  const toast = useToast();
+  const kb = useKeyboardHeight();
+  const { editTransaction, removeTransaction, addTransaction } = useTransactionStore();
+  const allCats = useCategoriesStore(s => s.categories);
+  const loadCats = useCategoriesStore(s => s.load);
+  useEffect(() => { loadCats(); }, []);
   const [showEdit, setShowEdit] = useState(false);
 
   // Edit form state
@@ -22,6 +31,7 @@ export default function TransactionItem({ transaction: tx }: { transaction: Tran
   const [date, setDate]       = useState('');
   const [type, setType]       = useState<TxType>('expense');
   const [category, setCategory] = useState('');
+  const [receipt, setReceipt] = useState<string | null>(null);
 
   const cat = getCategoryByKey(tx.category);
   const isIncome = tx.type === 'income';
@@ -32,24 +42,31 @@ export default function TransactionItem({ transaction: tx }: { transaction: Tran
     setDate(tx.date);
     setType(tx.type);
     setCategory(tx.category);
+    setReceipt(tx.receipt_uri ?? null);
     setShowEdit(true);
   }
+
+  async function addFromLibrary() { const uri = await pickReceipt(); if (uri) setReceipt(uri); }
+  async function addFromCamera() { const uri = await captureReceipt(); if (uri) setReceipt(uri); }
 
   function handleSave() {
     const amt = parseFloat(amount);
     if (isNaN(amt) || amt <= 0) { Alert.alert('Montant invalide'); return; }
-    editTransaction({ id: tx.id, amount: amt, category, note, date, type });
+    editTransaction({ id: tx.id, amount: amt, category, note, date, type, receipt_uri: receipt, account_id: tx.account_id });
     setShowEdit(false);
   }
 
   function handleDelete() {
-    Alert.alert('Supprimer ?', `${cat.label} — ${fmtMAD(tx.amount)}`, [
-      { text: 'Supprimer', style: 'destructive', onPress: () => removeTransaction(tx.id) },
-      { text: 'Annuler', style: 'cancel' },
-    ]);
+    haptic.warning();
+    const snapshot = {
+      amount: tx.amount, category: tx.category, note: tx.note, date: tx.date,
+      type: tx.type, account_id: tx.account_id ?? null, receipt_uri: tx.receipt_uri ?? null,
+    };
+    removeTransaction(tx.id);
+    toast({ message: 'Transaction supprimée', tone: 'danger', actionLabel: 'Annuler', onAction: () => addTransaction(snapshot) });
   }
 
-  const cats = type === 'expense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
+  const cats = allCats.filter(c => c.type === type);
 
   const s = StyleSheet.create({
     row:    { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md, marginBottom: theme.spacing.sm },
@@ -84,7 +101,10 @@ export default function TransactionItem({ transaction: tx }: { transaction: Tran
       <Card onPress={openEdit} onLongPress={handleDelete} style={s.row} padded>
         <CategoryIcon category={cat} />
         <View style={s.info}>
-          <Text style={s.label} numberOfLines={1}>{cat.label}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Text style={s.label} numberOfLines={1}>{cat.label}</Text>
+            {tx.receipt_uri ? <Ionicons name="attach" size={13} color={theme.colors.textTertiary} /> : null}
+          </View>
           <Text style={s.date} numberOfLines={1}>{tx.date}{tx.note ? ` · ${tx.note}` : ''}</Text>
         </View>
         <View style={s.right}>
@@ -103,7 +123,7 @@ export default function TransactionItem({ transaction: tx }: { transaction: Tran
             <TouchableOpacity onPress={handleSave}><Text style={s.save}>Sauvegarder</Text></TouchableOpacity>
           </View>
 
-          <ScrollView contentContainerStyle={s.body} keyboardShouldPersistTaps="handled">
+          <ScrollView contentContainerStyle={[s.body, { paddingBottom: 20 + kb }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             {/* Amount */}
             <View>
               <Text style={s.fieldLabel}>Montant (MAD)</Text>
@@ -136,12 +156,37 @@ export default function TransactionItem({ transaction: tx }: { transaction: Tran
                   const on = category === c.key;
                   return (
                     <TouchableOpacity key={c.key} style={[s.catBtn, { borderColor: on ? theme.colors.primary : theme.colors.border, backgroundColor: on ? theme.colors.primarySoft : theme.colors.card }]} onPress={() => setCategory(c.key)}>
-                      <Text style={{ fontSize: 22 }}>{c.emoji}</Text>
+                      <CategoryIcon category={c} size={30} />
                       <Text style={[s.catLabel, on && { color: theme.colors.primary }]} numberOfLines={1}>{c.label}</Text>
                     </TouchableOpacity>
                   );
                 })}
               </View>
+            </View>
+
+            {/* Receipt */}
+            <View>
+              <Text style={s.fieldLabel}>Reçu / justificatif</Text>
+              {receipt ? (
+                <View style={{ gap: 10 }}>
+                  <Image source={{ uri: receipt }} style={{ width: '100%', height: 180, borderRadius: 14, backgroundColor: theme.colors.surface }} resizeMode="cover" />
+                  <TouchableOpacity onPress={() => setReceipt(null)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start' }}>
+                    <Ionicons name="trash-outline" size={16} color={theme.colors.danger} />
+                    <Text style={{ color: theme.colors.danger, fontWeight: '600', fontSize: 13 }}>Retirer le reçu</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <TouchableOpacity onPress={addFromCamera} style={{ flex: 1, flexDirection: 'row', gap: 8, justifyContent: 'center', alignItems: 'center', paddingVertical: 14, borderRadius: 14, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.card }}>
+                    <Ionicons name="camera-outline" size={18} color={theme.colors.text} />
+                    <Text style={{ color: theme.colors.text, fontWeight: '600' }}>Photo</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={addFromLibrary} style={{ flex: 1, flexDirection: 'row', gap: 8, justifyContent: 'center', alignItems: 'center', paddingVertical: 14, borderRadius: 14, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.card }}>
+                    <Ionicons name="image-outline" size={18} color={theme.colors.text} />
+                    <Text style={{ color: theme.colors.text, fontWeight: '600' }}>Galerie</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
 
             {/* Note */}

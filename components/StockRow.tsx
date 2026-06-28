@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { Holding } from '../db/holdings';
 import { StockQuote } from '../api/mansa';
 import { usePortfolioStore } from '../store/usePortfolioStore';
@@ -37,10 +38,10 @@ export default function StockRow({ holding: h, quote }: { holding: Holding; quot
   });
 
   return (
-    <Card onLongPress={onDelete} style={s.row} padded>
+    <Card onPress={() => router.push(`/stock/${h.ticker}`)} onLongPress={onDelete} style={s.row} padded>
       <View style={s.badge}><Text style={s.ticker}>{h.ticker.replace('.CS', '')}</Text></View>
       <View style={s.info}>
-        <Text style={s.name} numberOfLines={1}>{quote?.name ?? h.ticker}</Text>
+        <Text style={s.name} numberOfLines={1}>{quote?.name ?? h.company_name ?? h.ticker}</Text>
         <Text style={s.sub}>{h.shares} act. × {fmtMAD(price, 2)}</Text>
       </View>
       <View style={s.right}>

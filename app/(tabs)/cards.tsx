@@ -6,9 +6,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAccountsStore } from '../../store/useAccountsStore';
 import { Account } from '../../db/accounts';
+import { Transfer, getTransfers } from '../../db/transfers';
 import { useTheme } from '../../theme/ThemeProvider';
 import { fmtMAD } from '../../lib/format';
-import { AppHeader, HeaderIconButton, Card, EmptyState, Field, Pill, Button, Sheet, SectionLabel } from '../../components/ui';
+import { haptic } from '../../lib/haptics';
+import { useKeyboardHeight } from '../../lib/useKeyboard';
+import { AppHeader, HeaderIconButton, Card, EmptyState, Field, Pill, Button, Sheet, SectionLabel, useToast } from '../../components/ui';
 
 const { width } = Dimensions.get('window');
 const CARD_W = width - 32;
@@ -18,9 +21,10 @@ const MOROCCAN_BANKS = [
   'BMCI', 'Crédit Agricole', 'CDG Capital', 'Société Générale', 'Al Barid Bank', 'Autre',
 ];
 const ACCOUNT_TYPES = [
-  { key: 'checking', label: 'Compte courant' },
-  { key: 'savings',  label: 'Compte épargne' },
-  { key: 'card',     label: 'Carte de crédit' },
+  { key: 'checking',  label: 'Compte courant' },
+  { key: 'savings',   label: 'Compte épargne' },
+  { key: 'card',      label: 'Carte de crédit' },
+  { key: 'emergency', label: "Fonds d'urgence" },
 ] as const;
 const CARD_COLORS = ['#0057FF', '#12161C', '#0ECB81', '#7C5CFF', '#F6465D', '#F0B90B'];
 
@@ -58,10 +62,19 @@ function BankCard({ account, onPress }: { account: Account; onPress: () => void 
 
 export default function CardsScreen() {
   const t = useTheme();
-  const { accounts, load, addAccount, setBalance, removeAccount } = useAccountsStore();
+  const toast = useToast();
+  const kb = useKeyboardHeight();
+  const { accounts, load, addAccount, setBalance, removeAccount, transfer } = useAccountsStore();
   const [showAdd, setShowAdd] = useState(false);
   const [editAcc, setEditAcc] = useState<Account | null>(null);
   const [editBal, setEditBal] = useState('');
+
+  const [showTransfer, setShowTransfer] = useState(false);
+  const [fromId, setFromId] = useState<number | null>(null);
+  const [toId, setToId] = useState<number | null>(null);
+  const [transferAmt, setTransferAmt] = useState('');
+  const [transfers, setTransfers] = useState<Transfer[]>([]);
+  function reloadTransfers() { setTransfers(getTransfers().slice(0, 8)); }
 
   const [name, setName] = useState('');
   const [bank, setBank] = useState(MOROCCAN_BANKS[0]);
@@ -70,11 +83,24 @@ export default function CardsScreen() {
   const [color, setColor] = useState(CARD_COLORS[0]);
   const [lastFour, setLastFour] = useState('');
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); reloadTransfers(); }, []);
+
+  function handleTransfer() {
+    const amt = parseFloat(transferAmt);
+    if (fromId == null || toId == null) { Alert.alert('Sélectionnez les comptes'); return; }
+    if (fromId === toId) { Alert.alert('Comptes identiques', 'Choisissez deux comptes différents.'); return; }
+    if (isNaN(amt) || amt <= 0) { Alert.alert('Montant invalide'); return; }
+    transfer(fromId, toId, amt, new Date().toISOString().slice(0, 10), '');
+    reloadTransfers();
+    haptic.success();
+    toast({ message: `${fmtMAD(amt)} transféré.`, tone: 'success' });
+    setShowTransfer(false); setTransferAmt(''); setFromId(null); setToId(null);
+  }
+  const accName = (id: number) => accounts.find(a => a.id === id)?.name ?? '—';
 
   const totalBalance = accounts.reduce((s, a) => s + a.balance, 0);
-  const totalCards = accounts.filter(a => a.type === 'card').length;
   const totalSavings = accounts.filter(a => a.type === 'savings').reduce((s, a) => s + a.balance, 0);
+  const totalEmergency = accounts.filter(a => a.type === 'emergency').reduce((s, a) => s + a.balance, 0);
 
   function resetForm() {
     setName(''); setBank(MOROCCAN_BANKS[0]); setType('checking'); setBalance2(''); setColor(CARD_COLORS[0]); setLastFour('');
@@ -135,7 +161,12 @@ export default function CardsScreen() {
     <View style={{ flex: 1, backgroundColor: t.colors.bg }}>
       <AppHeader
         title="Comptes" large
-        right={<HeaderIconButton icon="add" filled onPress={() => setShowAdd(true)} />}
+        right={
+          <>
+            {accounts.length >= 2 && <HeaderIconButton icon="swap-horizontal" onPress={() => setShowTransfer(true)} />}
+            <HeaderIconButton icon="add" filled onPress={() => setShowAdd(true)} />
+          </>
+        }
       />
 
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
@@ -149,13 +180,13 @@ export default function CardsScreen() {
             </View>
             <View style={s.nwDivider} />
             <View style={s.nwStat}>
-              <Text style={s.nwStatVal}>{totalCards}</Text>
-              <Text style={s.nwStatLabel}>carte{totalCards !== 1 ? 's' : ''}</Text>
+              <Text style={[s.nwStatVal, { color: t.colors.success }]}>{fmtMAD(totalSavings)}</Text>
+              <Text style={s.nwStatLabel}>épargne</Text>
             </View>
             <View style={s.nwDivider} />
             <View style={s.nwStat}>
-              <Text style={[s.nwStatVal, { color: t.colors.success }]}>{fmtMAD(totalSavings)}</Text>
-              <Text style={s.nwStatLabel}>épargne</Text>
+              <Text style={[s.nwStatVal, { color: t.colors.gold }]}>{fmtMAD(totalEmergency)}</Text>
+              <Text style={s.nwStatLabel}>urgence</Text>
             </View>
           </View>
         </Card>
@@ -191,6 +222,24 @@ export default function CardsScreen() {
             </Card>
           </>
         )}
+
+        {transfers.length > 0 && (
+          <Card>
+            <SectionLabel>Derniers mouvements</SectionLabel>
+            {transfers.map((tr, idx) => (
+              <View key={tr.id} style={[s.listRow, idx > 0 && s.listDivider]}>
+                <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: t.colors.primarySoft, justifyContent: 'center', alignItems: 'center' }}>
+                  <Ionicons name="swap-horizontal" size={16} color={t.colors.primary} />
+                </View>
+                <View style={s.listInfo}>
+                  <Text style={s.listName} numberOfLines={1}>{accName(tr.from_account)} → {accName(tr.to_account)}</Text>
+                  <Text style={s.listBank}>{tr.date}</Text>
+                </View>
+                <Text style={s.listBal}>{fmtMAD(tr.amount)}</Text>
+              </View>
+            ))}
+          </Card>
+        )}
       </ScrollView>
 
       {/* Add account modal */}
@@ -200,7 +249,7 @@ export default function CardsScreen() {
             <Text style={s.modalTitle}>Nouveau compte</Text>
             <TouchableOpacity onPress={() => setShowAdd(false)}><Ionicons name="close" size={24} color={t.colors.textSecondary} /></TouchableOpacity>
           </View>
-          <ScrollView contentContainerStyle={s.modalBody} keyboardShouldPersistTaps="handled">
+          <ScrollView contentContainerStyle={[s.modalBody, { paddingBottom: 48 + kb }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <Field label="Nom du compte" placeholder="Ex: Mon compte principal" value={name} onChangeText={setName} autoFocus />
             <View>
               <SectionLabel>Banque</SectionLabel>
@@ -231,6 +280,23 @@ export default function CardsScreen() {
           </ScrollView>
         </SafeAreaView>
       </Modal>
+
+      {/* Transfer sheet */}
+      <Sheet visible={showTransfer} onClose={() => setShowTransfer(false)} title="Transférer entre comptes">
+        <Text style={{ ...t.font.micro, color: t.colors.textTertiary, marginBottom: 8 }}>Depuis</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: t.spacing.sm, marginBottom: t.spacing.lg }}>
+          {accounts.map(a => <Pill key={a.id} label={a.name} selected={fromId === a.id} onPress={() => setFromId(a.id)} />)}
+        </View>
+        <Text style={{ ...t.font.micro, color: t.colors.textTertiary, marginBottom: 8 }}>Vers</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: t.spacing.sm, marginBottom: t.spacing.lg }}>
+          {accounts.map(a => <Pill key={a.id} label={a.name} selected={toId === a.id} onPress={() => setToId(a.id)} />)}
+        </View>
+        <Field label="Montant (MAD)" placeholder="0" value={transferAmt} onChangeText={setTransferAmt} keyboardType="decimal-pad" big />
+        <View style={s.sheetRow}>
+          <Button label="Annuler" variant="secondary" onPress={() => setShowTransfer(false)} style={{ flex: 1 }} full={false} />
+          <Button label="Transférer" icon="swap-horizontal" onPress={handleTransfer} style={{ flex: 2 }} full={false} />
+        </View>
+      </Sheet>
 
       {/* Edit balance sheet */}
       <Sheet visible={!!editAcc} onClose={() => setEditAcc(null)} title="Mettre à jour le solde">

@@ -1,23 +1,27 @@
+export type BudgetType = 'needs' | 'wants' | 'savings';
+
 export interface BudgetRule {
   category: string;
   label: string;
-  emoji: string;
-  percentage: number;
-  type: '50' | '30' | '20';
+  percentage: number;   // share of total income
+  type: BudgetType;
 }
 
-export const DEFAULT_BUDGET_RULES: BudgetRule[] = [
-  { category: 'housing',       label: 'Logement',      emoji: '🏠', percentage: 25, type: '50' },
-  { category: 'food',          label: 'Alimentation',   emoji: '🍔', percentage: 15, type: '50' },
-  { category: 'transport',     label: 'Transport',      emoji: '🚗', percentage: 10, type: '50' },
-  { category: 'entertainment', label: 'Loisirs',        emoji: '🎬', percentage: 15, type: '30' },
-  { category: 'clothing',      label: 'Vêtements',      emoji: '👕', percentage: 10, type: '30' },
-  { category: 'other_expense', label: 'Divers',         emoji: '📦', percentage:  5, type: '30' },
-  { category: 'savings',       label: 'Épargne',        emoji: '🏦', percentage: 20, type: '20' },
-];
+/** The 40 / 20 / 40 plan: 40% essential needs, 20% lifestyle wants, 40% savings. */
+export const BUDGET_SECTIONS: Record<BudgetType, { label: string; pct: number }> = {
+  needs:   { label: 'Besoins',  pct: 40 },
+  wants:   { label: 'Envies',   pct: 20 },
+  savings: { label: 'Épargne',  pct: 40 },
+};
 
-export const BUDGET_SECTIONS = {
-  '50': { label: 'Besoins (50%)', color: '#2563eb' },
-  '30': { label: 'Envies (30%)',  color: '#7c3aed' },
-  '20': { label: 'Épargne (20%)', color: '#16a34a' },
-} as const;
+export const BUDGET_ORDER: BudgetType[] = ['needs', 'wants', 'savings'];
+
+export const DEFAULT_BUDGET_RULES: BudgetRule[] = [
+  { category: 'housing',       label: 'Logement',     percentage: 20, type: 'needs' },
+  { category: 'food',          label: 'Alimentation', percentage: 12, type: 'needs' },
+  { category: 'transport',     label: 'Transport',    percentage: 8,  type: 'needs' },
+  { category: 'entertainment', label: 'Loisirs',      percentage: 10, type: 'wants' },
+  { category: 'clothing',      label: 'Vêtements',    percentage: 6,  type: 'wants' },
+  { category: 'other_expense', label: 'Divers',       percentage: 4,  type: 'wants' },
+  { category: 'savings',       label: 'Épargne',      percentage: 40, type: 'savings' },
+];

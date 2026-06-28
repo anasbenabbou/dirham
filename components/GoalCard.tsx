@@ -1,11 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Goal } from '../db/goals';
 import { useGoalsStore } from '../store/useGoalsStore';
+import { useAccountsStore } from '../store/useAccountsStore';
 import { useTheme } from '../theme/ThemeProvider';
 import { fmtMAD } from '../lib/format';
-import { Card, ProgressBar, Button, Field, Sheet } from './ui';
+import { haptic } from '../lib/haptics';
+import { Card, ProgressBar, Button, Field, Sheet, Pill } from './ui';
 
 function daysLeft(d: string | null): string | null {
   if (!d) return null;
@@ -15,19 +17,33 @@ function daysLeft(d: string | null): string | null {
 
 export default function GoalCard({ goal: g }: { goal: Goal }) {
   const t = useTheme();
-  const { deposit, removeGoal } = useGoalsStore();
-  const [showDeposit, setShowDeposit] = useState(false);
+  const { deposit, withdraw, removeGoal } = useGoalsStore();
+  const { accounts, load: loadAccounts } = useAccountsStore();
+  const [mode, setMode] = useState<null | 'deposit' | 'withdraw'>(null);
   const [amount, setAmount] = useState('');
+  const [accountId, setAccountId] = useState<number | null>(null);
+
+  useEffect(() => { loadAccounts(); }, []);
 
   const pct = Math.min(g.current_amount / g.target_amount, 1);
   const remaining = g.target_amount - g.current_amount;
   const accent = g.completed ? t.colors.success : t.colors.primary;
 
-  function handleDeposit() {
+  function openSheet(m: 'deposit' | 'withdraw') {
+    setMode(m); setAmount('');
+    setAccountId(accounts.length ? accounts[0].id : null);
+  }
+
+  function confirm() {
     const n = parseFloat(amount);
     if (isNaN(n) || n <= 0) { Alert.alert('Montant invalide', 'Entrez un montant positif.'); return; }
-    deposit(g.id, n); setAmount(''); setShowDeposit(false);
+    if (accounts.length > 0 && accountId == null) { Alert.alert('Choisissez un compte'); return; }
+    if (mode === 'deposit') deposit(g.id, n, accountId);
+    else withdraw(g.id, n, accountId);
+    haptic.success();
+    setMode(null); setAmount('');
   }
+
   function onDelete() {
     Alert.alert('Supprimer cet objectif ?', g.name, [
       { text: 'Supprimer', style: 'destructive', onPress: () => removeGoal(g.id) },
@@ -49,6 +65,9 @@ export default function GoalCard({ goal: g }: { goal: Goal }) {
     current: { fontSize: 22, fontWeight: '800', color: t.colors.text },
     sub: { ...t.font.caption, color: t.colors.textSecondary, marginTop: 2 },
     remaining: { ...t.font.heading, color: t.colors.text },
+    btnRow: { flexDirection: 'row', gap: t.spacing.sm },
+    label: { ...t.font.micro, color: t.colors.textTertiary, marginBottom: 8, marginTop: t.spacing.md },
+    pillWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: t.spacing.sm },
     sheetRow: { flexDirection: 'row', gap: t.spacing.md, marginTop: t.spacing.lg },
   });
 
@@ -82,15 +101,24 @@ export default function GoalCard({ goal: g }: { goal: Goal }) {
         )}
       </View>
 
-      {!g.completed && (
-        <Button label="Verser" icon="add" variant="secondary" onPress={() => setShowDeposit(true)} />
-      )}
+      <View style={s.btnRow}>
+        {!g.completed && <Button label="Verser" icon="arrow-down" variant="secondary" onPress={() => openSheet('deposit')} style={{ flex: 1 }} full={false} />}
+        {g.current_amount > 0 && <Button label="Retirer" icon="arrow-up" variant="ghost" onPress={() => openSheet('withdraw')} style={{ flex: 1 }} full={false} />}
+      </View>
 
-      <Sheet visible={showDeposit} onClose={() => { setAmount(''); setShowDeposit(false); }} title={`Verser dans « ${g.name} »`}>
+      <Sheet visible={mode !== null} onClose={() => setMode(null)} title={mode === 'withdraw' ? `Retirer de « ${g.name} »` : `Verser dans « ${g.name} »`}>
         <Field label="Montant (MAD)" placeholder="0" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" autoFocus big style={{ textAlign: 'center' }} />
+        {accounts.length > 0 && (
+          <>
+            <Text style={s.label}>{mode === 'withdraw' ? 'Vers le compte' : 'Depuis le compte'}</Text>
+            <View style={s.pillWrap}>
+              {accounts.map(a => <Pill key={a.id} label={`${a.name} · ${fmtMAD(a.balance)}`} selected={accountId === a.id} onPress={() => setAccountId(a.id)} />)}
+            </View>
+          </>
+        )}
         <View style={s.sheetRow}>
-          <Button label="Annuler" variant="secondary" onPress={() => { setAmount(''); setShowDeposit(false); }} style={{ flex: 1 }} full={false} />
-          <Button label="Verser" icon="checkmark" onPress={handleDeposit} style={{ flex: 2 }} full={false} />
+          <Button label="Annuler" variant="secondary" onPress={() => setMode(null)} style={{ flex: 1 }} full={false} />
+          <Button label={mode === 'withdraw' ? 'Retirer' : 'Verser'} icon="checkmark" onPress={confirm} style={{ flex: 2 }} full={false} />
         </View>
       </Sheet>
     </Card>

@@ -1,6 +1,7 @@
 import { Tabs } from 'expo-router';
 import TabBar from '../../components/TabBar';
 import QuickAdd from '../../components/QuickAdd';
+import NavMenu from '../../components/NavMenu';
 import { useUIStore } from '../../store/useUIStore';
 
 export default function TabLayout() {
@@ -15,6 +16,7 @@ export default function TabLayout() {
         <Tabs.Screen name="portfolio" options={{ title: 'Bourse'    }} />
       </Tabs>
 
+      <NavMenu />
       <QuickAdd visible={quickAddOpen} onClose={closeQuickAdd} />
     </>
   );

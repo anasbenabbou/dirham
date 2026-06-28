@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, Animated, StyleSheet, Dimensions } from '
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { getSetting } from '../db/settings';
 
 const { width, height } = Dimensions.get('window');
 
@@ -27,7 +28,7 @@ export default function SplashScreen() {
     Animated.parallel([
       Animated.timing(fade,  { toValue: 0, duration: 280, useNativeDriver: true }),
       Animated.timing(slide, { toValue: -30, duration: 280, useNativeDriver: true }),
-    ]).start(() => router.replace('/(tabs)'));
+    ]).start(() => router.replace(getSetting('onboardingDone') === '1' ? '/(tabs)' : '/onboarding'));
   }
 
   return (

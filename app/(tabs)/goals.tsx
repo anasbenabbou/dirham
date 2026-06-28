@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, FlatList, StyleSheet, Alert } from 'react-native';
+import { View, Text, FlatList, StyleSheet, Alert, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useGoalsStore } from '../../store/useGoalsStore';
 import GoalCard from '../../components/GoalCard';
@@ -49,6 +49,7 @@ export default function GoalsScreen() {
         renderItem={({ item }) => <GoalCard goal={item} />}
         contentContainerStyle={s.list}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={false} onRefresh={load} tintColor={t.colors.primary} colors={[t.colors.primary]} />}
         ListHeaderComponent={
           goals.length > 0 ? (
             <Card style={s.summary as any}>

@@ -1,12 +1,15 @@
 import { useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { AppHeader, HeaderIconButton, Card, SectionLabel, CategoryIcon } from '../../components/ui';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useTransactionStore } from '../../store/useTransactionStore';
 import { usePortfolioStore } from '../../store/usePortfolioStore';
-import { getCategoryByKey } from '../../constants/categories';
+import { useAccountsStore } from '../../store/useAccountsStore';
+import { useGoalsStore } from '../../store/useGoalsStore';
+import { getCategoryByKey } from '../../db/categories';
+import { computeNetWorth } from '../../lib/finance';
 import { fmtMAD, fmtSigned } from '../../lib/format';
 
 const DAY_LABELS = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
@@ -22,10 +25,13 @@ export default function DashboardScreen() {
   const t = useTheme();
   const { transactions, monthlyTotals, byCategory, currentMonth, loadMonth } = useTransactionStore();
   const { holdings, quotes, loadHoldings } = usePortfolioStore();
+  const { accounts, load: loadAccounts } = useAccountsStore();
+  const { goals, load: loadGoals } = useGoalsStore();
 
-  useEffect(() => { loadMonth(currentMonth); loadHoldings(); }, []);
+  useEffect(() => { loadMonth(currentMonth); loadHoldings(); loadAccounts(); loadGoals(); }, []);
 
   const balance = monthlyTotals.income - monthlyTotals.expenses;
+  const nw = computeNetWorth(accounts, holdings, quotes, goals);
 
   const portfolioValue = holdings.reduce((s, h) => s + h.shares * (quotes[h.ticker]?.price ?? h.buy_price), 0);
   const portfolioGain = portfolioValue - holdings.reduce((s, h) => s + h.shares * h.buy_price, 0);
@@ -50,12 +56,18 @@ export default function DashboardScreen() {
     heroMonth: { ...t.font.micro, color: 'rgba(255,255,255,0.7)', marginBottom: 6 },
     heroBalance: { color: '#fff', fontSize: 40, fontWeight: '800', letterSpacing: -1.5, lineHeight: 44 },
     heroSub: { color: 'rgba(255,255,255,0.7)', fontSize: 12, marginTop: 4 },
+    heroTopRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+    analyseBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.18)', justifyContent: 'center', alignItems: 'center' },
     chips: { flexDirection: 'row', backgroundColor: 'rgba(0,0,0,0.18)', borderRadius: t.radius.lg, padding: 14, alignItems: 'center' },
-    chip: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
-    chipDot: { width: 8, height: 8, borderRadius: 4 },
+    chip3: { flex: 1, alignItems: 'center', gap: 3 },
     chipLbl: { color: 'rgba(255,255,255,0.7)', fontSize: 11, fontWeight: '500' },
-    chipAmt: { color: '#fff', fontSize: 15, fontWeight: '700', marginTop: 1 },
-    chipDivider: { width: 1, height: 30, backgroundColor: 'rgba(255,255,255,0.22)', marginHorizontal: 12 },
+    chipAmt: { color: '#fff', fontSize: 14, fontWeight: '700', marginTop: 1 },
+    chipDivider: { width: 1, height: 30, backgroundColor: 'rgba(255,255,255,0.22)', marginHorizontal: 8 },
+
+    monthRow: { flexDirection: 'row', alignItems: 'center' },
+    monthCell: { flex: 1, alignItems: 'center', gap: 3 },
+    monthLbl: { ...t.font.micro, color: t.colors.textTertiary },
+    monthVal: { fontSize: 15, fontWeight: '700', letterSpacing: -0.3 },
 
     cardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: t.spacing.md },
     link: { ...t.font.label, color: t.colors.primary },
@@ -98,32 +110,64 @@ export default function DashboardScreen() {
         right={<HeaderIconButton icon="settings-outline" onPress={() => router.push('/settings')} />}
       />
 
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
-        {/* Hero balance */}
+      <ScrollView
+        contentContainerStyle={s.scroll}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={false} onRefresh={() => { loadMonth(currentMonth); loadHoldings(); }} tintColor={t.colors.primary} colors={[t.colors.primary]} />}
+      >
+        {/* Net worth hero */}
         <View style={s.hero}>
-          <View>
-            <Text style={s.heroMonth}>{monthLabel}</Text>
-            <Text style={s.heroBalance}>{fmtMAD(balance)}</Text>
-            <Text style={s.heroSub}>Solde net du mois</Text>
+          <View style={s.heroTopRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.heroMonth}>Patrimoine total</Text>
+              <Text style={s.heroBalance}>{fmtMAD(nw.total)}</Text>
+              <Text style={s.heroSub}>Liquidités · Bourse · Objectifs</Text>
+            </View>
+            <TouchableOpacity style={s.analyseBtn} onPress={() => router.push('/insights')} activeOpacity={0.85}>
+              <Ionicons name="pulse" size={20} color="#fff" />
+            </TouchableOpacity>
           </View>
           <View style={s.chips}>
-            <View style={s.chip}>
-              <View style={[s.chipDot, { backgroundColor: t.colors.success }]} />
-              <View>
-                <Text style={s.chipLbl}>Revenus</Text>
-                <Text style={s.chipAmt}>{fmtSigned(monthlyTotals.income)}</Text>
-              </View>
+            <View style={s.chip3}>
+              <Text style={s.chipLbl}>Liquidités</Text>
+              <Text style={s.chipAmt}>{fmtMAD(nw.cash + nw.emergency)}</Text>
             </View>
             <View style={s.chipDivider} />
-            <View style={s.chip}>
-              <View style={[s.chipDot, { backgroundColor: '#FFD0D8' }]} />
-              <View>
-                <Text style={s.chipLbl}>Dépenses</Text>
-                <Text style={s.chipAmt}>{fmtSigned(-monthlyTotals.expenses)}</Text>
-              </View>
+            <View style={s.chip3}>
+              <Text style={s.chipLbl}>Bourse</Text>
+              <Text style={s.chipAmt}>{fmtMAD(nw.invest)}</Text>
+            </View>
+            <View style={s.chipDivider} />
+            <View style={s.chip3}>
+              <Text style={s.chipLbl}>Objectifs</Text>
+              <Text style={s.chipAmt}>{fmtMAD(nw.goals)}</Text>
             </View>
           </View>
         </View>
+
+        {/* This month */}
+        <Card>
+          <View style={s.cardHead}>
+            <SectionLabel style={{ marginBottom: 0 }}>Ce mois · {monthLabel}</SectionLabel>
+            <TouchableOpacity onPress={() => router.push('/transactions')}>
+              <Text style={s.link}>Détails →</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={s.monthRow}>
+            <View style={s.monthCell}>
+              <Text style={s.monthLbl}>Revenus</Text>
+              <Text style={[s.monthVal, { color: t.colors.success }]}>{fmtSigned(monthlyTotals.income)}</Text>
+            </View>
+            <View style={s.monthCell}>
+              <Text style={s.monthLbl}>Dépenses</Text>
+              <Text style={[s.monthVal, { color: t.colors.danger }]}>{fmtSigned(-monthlyTotals.expenses)}</Text>
+            </View>
+            <View style={s.monthCell}>
+              <Text style={s.monthLbl}>Épargné</Text>
+              <Text style={[s.monthVal, { color: t.colors.text }]}>{fmtMAD(balance)}</Text>
+            </View>
+          </View>
+        </Card>
 
         {/* 7-day spending chart */}
         <Card>
@@ -149,18 +193,23 @@ export default function DashboardScreen() {
         {/* Category breakdown */}
         {topCats.length > 0 && (
           <Card>
-            <SectionLabel>Répartition des dépenses</SectionLabel>
+            <View style={s.cardHead}>
+              <SectionLabel style={{ marginBottom: 0 }}>Répartition des dépenses</SectionLabel>
+              <TouchableOpacity onPress={() => router.push('/insights')}>
+                <Text style={s.link}>Analyses →</Text>
+              </TouchableOpacity>
+            </View>
             <View style={s.catGrid}>
               {topCats.map(([key, val]) => {
                 const cat = getCategoryByKey(key);
                 return (
-                  <View key={key} style={s.catChip}>
+                  <TouchableOpacity key={key} style={s.catChip} onPress={() => router.push(`/category/${key}`)} activeOpacity={0.7}>
                     <CategoryIcon category={cat} size={38} />
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text style={s.catName} numberOfLines={1}>{cat.label}</Text>
                       <Text style={s.catPct}>{Math.round((val / totalSpent) * 100)}%</Text>
                     </View>
-                  </View>
+                  </TouchableOpacity>
                 );
               })}
             </View>

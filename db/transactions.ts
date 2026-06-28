@@ -7,26 +7,51 @@ export interface Transaction {
   note: string;
   date: string;
   type: 'income' | 'expense';
+  account_id?: number | null;
+  receipt_uri?: string | null;
 }
 
-export function insertTransaction(t: Omit<Transaction, 'id'>): void {
-  getDb().runSync(
-    `INSERT INTO transactions (amount, category, note, date, type) VALUES (?, ?, ?, ?, ?)`,
-    [t.amount, t.category, t.note, t.date, t.type]
+export function insertTransaction(t: Omit<Transaction, 'id'>): number {
+  const res = getDb().runSync(
+    `INSERT INTO transactions (amount, category, note, date, type, account_id, receipt_uri) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [t.amount, t.category, t.note, t.date, t.type, t.account_id ?? null, t.receipt_uri ?? null]
   );
+  return res.lastInsertRowId;
 }
 
 export function getTransactions(month: string): Transaction[] {
   return getDb().getAllSync<Transaction>(
-    `SELECT * FROM transactions WHERE date LIKE ? ORDER BY date DESC`,
+    `SELECT * FROM transactions WHERE date LIKE ? ORDER BY date DESC, id DESC`,
     [`${month}%`]
   );
 }
 
+export function getAllTransactions(): Transaction[] {
+  return getDb().getAllSync<Transaction>(`SELECT * FROM transactions ORDER BY date DESC, id DESC`);
+}
+
+export function getTransactionById(id: number): Transaction | null {
+  return getDb().getFirstSync<Transaction>(`SELECT * FROM transactions WHERE id = ?`, [id]) ?? null;
+}
+
+export function getTransactionsByCategory(category: string): Transaction[] {
+  return getDb().getAllSync<Transaction>(
+    `SELECT * FROM transactions WHERE category = ? ORDER BY date DESC, id DESC`, [category]
+  );
+}
+
+/** Distinct months that contain at least one transaction, newest first. */
+export function getMonthsWithData(): string[] {
+  const rows = getDb().getAllSync<{ m: string }>(
+    `SELECT DISTINCT substr(date,1,7) as m FROM transactions ORDER BY m DESC`
+  );
+  return rows.map(r => r.m);
+}
+
 export function updateTransaction(t: Transaction): void {
   getDb().runSync(
-    `UPDATE transactions SET amount=?, category=?, note=?, date=?, type=? WHERE id=?`,
-    [t.amount, t.category, t.note, t.date, t.type, t.id]
+    `UPDATE transactions SET amount=?, category=?, note=?, date=?, type=?, account_id=?, receipt_uri=? WHERE id=?`,
+    [t.amount, t.category, t.note, t.date, t.type, t.account_id ?? null, t.receipt_uri ?? null, t.id]
   );
 }
 
@@ -51,4 +76,16 @@ export function getMonthlyByCategory(month: string): Record<string, number> {
     [`${month}%`]
   );
   return Object.fromEntries(rows.map(r => [r.category, r.total]));
+}
+
+/** Income/expense totals per month for the trailing `n` months (oldest→newest). */
+export function getTrend(n: number): { month: string; income: number; expenses: number }[] {
+  const out: { month: string; income: number; expenses: number }[] = [];
+  const now = new Date();
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const month = d.toISOString().slice(0, 7);
+    out.push({ month, ...getMonthlyTotals(month) });
+  }
+  return out;
 }
