@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { AppHeader, Card, SectionLabel, LineChart, Bars, Donut, EmptyState } from '../components/ui';
 import { useTheme } from '../theme/ThemeProvider';
 import { fmtMAD, fmtSigned } from '../lib/format';
+import { usePrivacyMask } from '../lib/usePrivacyMask';
 import { getTrend, getMonthlyByCategory } from '../db/transactions';
 import { getSnapshots } from '../db/networth';
 import { getBudgetsForMonth } from '../db/budgets';
@@ -24,6 +25,8 @@ export default function InsightsScreen() {
   const { goals, load: loadGoals } = useGoalsStore();
   const { holdings, quotes, loadHoldings } = usePortfolioStore();
   useEffect(() => { loadAccounts(); loadGoals(); loadHoldings(); }, []);
+
+  const { maskMAD, maskSigned } = usePrivacyMask();
 
   const trend = useMemo(() => getTrend(6), []);
   const snapshots = useMemo(() => getSnapshots(30), []);
@@ -108,7 +111,7 @@ export default function InsightsScreen() {
             />
             <View style={{ flex: 1 }}>
               <Text style={s.healthRating}>{health.rating}</Text>
-              <Text style={s.healthSub}>Patrimoine total : {fmtMAD(nw.total)}</Text>
+              <Text style={s.healthSub}>Patrimoine total : {maskMAD(nw.total)}</Text>
               <Text style={s.healthSub}>Épargne {Math.round(health.savingsRate)}% · Urgence {health.emergencyMonths.toFixed(1)} mois</Text>
             </View>
           </View>
@@ -132,11 +135,11 @@ export default function InsightsScreen() {
         <View style={s.statRow}>
           <Card style={s.stat}>
             <Text style={s.statLabel}>Épargne moy. / mois</Text>
-            <Text style={[s.statVal, { color: avgNet >= 0 ? t.colors.success : t.colors.danger }]}>{fmtSigned(Math.round(avgNet))}</Text>
+            <Text style={[s.statVal, { color: avgNet >= 0 ? t.colors.success : t.colors.danger }]}>{maskSigned(Math.round(avgNet))}</Text>
           </Card>
           <Card style={s.stat}>
             <Text style={s.statLabel}>Dépense moy. / mois</Text>
-            <Text style={[s.statVal, { color: t.colors.text }]}>{fmtMAD(Math.round(avgExpense))}</Text>
+            <Text style={[s.statVal, { color: t.colors.text }]}>{maskMAD(Math.round(avgExpense))}</Text>
           </Card>
         </View>
 
@@ -172,9 +175,9 @@ export default function InsightsScreen() {
             return (
               <View key={m.month} style={s.legendRow}>
                 <Text style={{ ...t.font.label, color: t.colors.textSecondary, width: 44, textTransform: 'capitalize' }}>{monthShort(m.month)}</Text>
-                <Text style={{ flex: 1, ...t.font.caption, color: t.colors.success }}>{fmtSigned(m.income)}</Text>
-                <Text style={{ flex: 1, ...t.font.caption, color: t.colors.danger }}>{fmtSigned(-m.expenses)}</Text>
-                <Text style={{ ...t.font.label, color: net >= 0 ? t.colors.success : t.colors.danger }}>{fmtSigned(net)}</Text>
+                <Text style={{ flex: 1, ...t.font.caption, color: t.colors.success }}>{maskSigned(m.income)}</Text>
+                <Text style={{ flex: 1, ...t.font.caption, color: t.colors.danger }}>{maskSigned(-m.expenses)}</Text>
+                <Text style={{ ...t.font.label, color: net >= 0 ? t.colors.success : t.colors.danger }}>{maskSigned(net)}</Text>
               </View>
             );
           })}
@@ -188,7 +191,7 @@ export default function InsightsScreen() {
               <Donut
                 size={130} thickness={20}
                 data={catData.map(c => ({ value: c.val, color: c.color }))}
-                centerLabel={fmtMAD(catTotal)} centerSub="dépensé"
+                centerLabel={maskMAD(catTotal)} centerSub="dépensé"
               />
               <View style={{ flex: 1, gap: 2 }}>
                 {catData.map(c => (
@@ -208,8 +211,8 @@ export default function InsightsScreen() {
           <SectionLabel>Prévision · 6 mois</SectionLabel>
           <LineChart data={[currentNW, ...forecast]} width={W} color={avgNet >= 0 ? t.colors.success : t.colors.danger} />
           <Text style={s.forecastNote}>
-            Au rythme actuel ({fmtSigned(Math.round(avgNet))}/mois), votre patrimoine atteindrait{' '}
-            <Text style={{ fontWeight: '800', color: t.colors.text }}>{fmtMAD(Math.round(forecast[5]))}</Text> dans 6 mois.
+            Au rythme actuel ({maskSigned(Math.round(avgNet))}/mois), votre patrimoine atteindrait{' '}
+            <Text style={{ fontWeight: '800', color: t.colors.text }}>{maskMAD(Math.round(forecast[5]))}</Text> dans 6 mois.
           </Text>
         </Card>
       </ScrollView>

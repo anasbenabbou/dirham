@@ -1,5 +1,8 @@
 /** Money + number formatting, centralized so every screen reads identically. */
 
+/** Use this when hideAmounts is active — replaces the value with bullets. */
+export const HIDDEN_AMOUNT = '•••• MAD';
+
 export function fmtMAD(n: number, digits = 0): string {
   return n.toLocaleString('fr-MA', {
     style: 'currency',

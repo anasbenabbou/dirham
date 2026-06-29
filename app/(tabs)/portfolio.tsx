@@ -1,14 +1,14 @@
 import { useEffect, useState, useMemo } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, Modal, StyleSheet, ActivityIndicator, Alert, ScrollView, RefreshControl, Dimensions,
+  View, Text, FlatList, TouchableOpacity, Modal, StyleSheet, ActivityIndicator, Alert, ScrollView, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { usePortfolioStore } from '../../store/usePortfolioStore';
-import StockRow from '../../components/StockRow';
 import { useTheme } from '../../theme/ThemeProvider';
 import { BvcStock } from '../../constants/bvcStocks';
+import CompanyAvatar from '../../components/CompanyAvatar';
 import { InstrumentClass } from '../../db/instruments';
 import { MarketRow } from '../../api/mansa';
 import { useKeyboardHeight } from '../../lib/useKeyboard';
@@ -21,10 +21,8 @@ function compact(n: number | null | undefined): string {
   if (a >= 1e3) return Math.round(n / 1e3) + ' K';
   return String(Math.round(n));
 }
-import { fmtMAD, fmtNum, fmtSigned, fmtPct } from '../../lib/format';
-import { AppHeader, HeaderIconButton, Card, Field, Segmented, Button, Donut, Skeleton, SectionLabel, Badge } from '../../components/ui';
-
-const ALLOC_COLORS = ['#3D7BFF', '#0ECB81', '#F0B90B', '#FF6FD8', '#8B7CFF', '#3DD6C4', '#FF8A3D', '#5CC8FF'];
+import { fmtMAD, fmtNum, fmtPct } from '../../lib/format';
+import { AppHeader, HeaderIconButton, Card, Field, Segmented, Button, SectionLabel, Badge } from '../../components/ui';
 
 /* ── Step 1: pick an instrument (live, full exchange list) ─────────────── */
 const CLASS_LABEL: Record<InstrumentClass, string> = {
@@ -206,13 +204,12 @@ function AmountEntry({ stock, onConfirm, onBack }: { stock: BvcStock; onConfirm:
 /* ── Main screen ──────────────────────────────────────────────────────── */
 export default function PortfolioScreen() {
   const t = useTheme();
-  const W = Dimensions.get('window').width - 32 - 36;
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedStock, setSelectedStock] = useState<BvcStock | null>(null);
   const [moverTab, setMoverTab] = useState<'gain' | 'lose' | 'vol'>('gain');
   const [coteQuery, setCoteQuery] = useState('');
   const {
-    holdings, quotes, market, masi, loading, error, watchlist, dividendTotal, instruments,
+    holdings, quotes, market, masi, loading, error, watchlist, instruments,
     loadHoldings, loadWatchlist, loadDividends, loadInstruments, addHolding, refreshPrices,
   } = usePortfolioStore();
 
@@ -232,16 +229,6 @@ export default function PortfolioScreen() {
     return q ? list.filter(m => m.ticker.toLowerCase().includes(q) || nameOf(m.ticker).toLowerCase().includes(q)) : list;
   }, [market, coteQuery, instruments]);
 
-  const totalValue = holdings.reduce((s, h) => s + h.shares * (quotes[h.ticker]?.price ?? h.buy_price), 0);
-  const totalCost = holdings.reduce((s, h) => s + h.shares * h.buy_price, 0);
-  const totalGain = totalValue - totalCost;
-  const gainPct = totalCost > 0 ? (totalGain / totalCost) * 100 : 0;
-  const positive = totalGain >= 0;
-
-  const alloc = holdings
-    .map((h, i) => ({ ticker: h.ticker, value: h.shares * (quotes[h.ticker]?.price ?? h.buy_price), color: ALLOC_COLORS[i % ALLOC_COLORS.length] }))
-    .sort((a, b) => b.value - a.value);
-
   function openPicker() { setSelectedStock(null); setModalOpen(true); }
   function closeModal() { setModalOpen(false); setSelectedStock(null); }
   function handleConfirm(shares: number, price: number) {
@@ -252,24 +239,22 @@ export default function PortfolioScreen() {
 
   const masiUp = masi ? masi.change >= 0 : true;
   const masiColor = masi ? (masiUp ? t.colors.success : t.colors.danger) : t.colors.textSecondary;
-  const showSkeleton = loading && Object.keys(quotes).length === 0 && holdings.length > 0;
-
   const s = StyleSheet.create({
-    masi: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    heroCard: { backgroundColor: t.colors.cardAlt, borderColor: t.colors.borderStrong },
+    masi: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
     masiLabel: { ...t.font.micro, color: t.colors.textTertiary },
-    masiValue: { fontSize: 24, fontWeight: '800', color: t.colors.text, marginTop: 2 },
+    masiValue: { fontSize: 34, fontWeight: '800', color: t.colors.text, marginTop: 2 },
     masiChange: { ...t.font.heading },
     masiPct: { ...t.font.caption },
-    refresh: { color: t.colors.primary, ...t.font.caption, fontWeight: '600', marginTop: 4 },
-    summary: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    sumLabel: { ...t.font.micro, color: t.colors.textTertiary },
-    sumVal: { fontSize: 24, fontWeight: '800', color: t.colors.text, marginTop: 2 },
-    sumGain: { ...t.font.heading, marginTop: 2 },
-    divRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: t.spacing.md, paddingTop: t.spacing.md, borderTopWidth: 1, borderTopColor: t.colors.border },
+    refresh: { color: t.colors.gold, ...t.font.caption, fontWeight: '700', marginTop: 6 },
+    heroStats: { flexDirection: 'row', gap: t.spacing.sm, marginTop: t.spacing.lg },
+    heroStat: { flex: 1, backgroundColor: t.colors.surface, borderRadius: t.radius.md, padding: 12 },
+    heroStatLabel: { ...t.font.micro, color: t.colors.textTertiary },
+    heroStatValue: { ...t.font.label, color: t.colors.text, marginTop: 4 },
+    smartRow: { flexDirection: 'row', alignItems: 'center', gap: t.spacing.md, paddingVertical: 10, borderTopWidth: 1, borderTopColor: t.colors.border },
+    smartIcon: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: t.colors.primarySoft },
     error: { color: t.colors.danger, textAlign: 'center', padding: 8, fontSize: 13 },
     list: { padding: t.spacing.lg, paddingBottom: 120, gap: t.spacing.sm },
-    legend: { flexDirection: 'row', alignItems: 'center', gap: t.spacing.sm, paddingVertical: 5 },
-    dot: { width: 10, height: 10, borderRadius: 5 },
     watchRow: { flexDirection: 'row', alignItems: 'center', gap: t.spacing.md, paddingVertical: 10, borderTopWidth: 1, borderTopColor: t.colors.border },
     wBadge: { backgroundColor: t.colors.surface, borderRadius: t.radius.sm, paddingHorizontal: 8, paddingVertical: 5, minWidth: 52, alignItems: 'center' },
     wTicker: { ...t.font.label, color: t.colors.text },
@@ -277,23 +262,28 @@ export default function PortfolioScreen() {
     modalHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: t.spacing.lg, borderBottomWidth: 1, borderBottomColor: t.colors.border },
     modalTitle: { ...t.font.heading, color: t.colors.text },
     cardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: t.spacing.md },
-    moverTabs: { flexDirection: 'row', gap: 6 },
-    moverTab: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: t.radius.pill, backgroundColor: t.colors.surface },
-    moverTabOn: { backgroundColor: t.colors.primary },
+    moverTabs: { flexDirection: 'row', gap: 6, backgroundColor: t.colors.surface, borderRadius: t.radius.pill, padding: 3 },
+    moverTab: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: t.radius.pill },
+    moverTabOn: { backgroundColor: t.colors.card },
     moverTabTxt: { ...t.font.caption, fontWeight: '700' },
-    mrow: { flexDirection: 'row', alignItems: 'center', gap: t.spacing.md, paddingVertical: 10, borderTopWidth: 1, borderTopColor: t.colors.border },
-    mbadge: { backgroundColor: t.colors.surface, borderRadius: t.radius.sm, paddingHorizontal: 8, paddingVertical: 5, minWidth: 56, alignItems: 'center' },
+    mrow: { flexDirection: 'row', alignItems: 'center', gap: t.spacing.md, paddingVertical: 12, borderTopWidth: 1, borderTopColor: t.colors.border },
+    midentity: { flex: 1, minWidth: 0 },
     mticker: { ...t.font.label, color: t.colors.text },
-    mname: { ...t.font.body, color: t.colors.text, flex: 1 },
-    mlast: { ...t.font.label, color: t.colors.text },
+    mname: { ...t.font.caption, color: t.colors.textSecondary, marginTop: 2 },
+    mlast: { fontSize: 15, fontWeight: '800', color: t.colors.text },
     mvol: { ...t.font.caption, color: t.colors.textSecondary, marginTop: 2 },
+    quoteHead: { flexDirection: 'row', paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: t.colors.border },
+    quoteHeadTxt: { ...t.font.micro, color: t.colors.textTertiary },
     posHint: { ...t.font.caption, color: t.colors.textSecondary, textAlign: 'center', paddingVertical: t.spacing.sm },
   });
 
   const MktRow = ({ m, mode, first }: { m: MarketRow; mode: 'pct' | 'vol'; first?: boolean }) => (
     <TouchableOpacity style={[s.mrow, first && { borderTopWidth: 0 }]} onPress={() => router.push(`/stock/${m.ticker}`)} activeOpacity={0.7}>
-      <View style={s.mbadge}><Text style={s.mticker}>{m.ticker}</Text></View>
-      <Text style={s.mname} numberOfLines={1}>{nameOf(m.ticker)}</Text>
+      <CompanyAvatar ticker={m.ticker} size={38} />
+      <View style={s.midentity}>
+        <Text style={s.mticker}>{m.ticker}</Text>
+        <Text style={s.mname} numberOfLines={1}>{nameOf(m.ticker)}</Text>
+      </View>
       <View style={{ alignItems: 'flex-end' }}>
         <Text style={s.mlast}>{fmtNum(m.last)}</Text>
         {mode === 'vol'
@@ -314,7 +304,7 @@ export default function PortfolioScreen() {
         refreshControl={<RefreshControl refreshing={loading} onRefresh={refreshPrices} tintColor={t.colors.primary} colors={[t.colors.primary]} />}
       >
         {/* MASI index */}
-        <Card>
+        <Card style={s.heroCard}>
           <View style={s.masi}>
             <View>
               <Text style={s.masiLabel}>MASI · Indice général</Text>
@@ -330,6 +320,22 @@ export default function PortfolioScreen() {
               <TouchableOpacity onPress={refreshPrices} disabled={loading} style={{ marginTop: 4 }}>
                 {loading ? <ActivityIndicator color={t.colors.primary} size="small" /> : <Text style={s.refresh}>↻ Actualiser</Text>}
               </TouchableOpacity>
+            </View>
+          </View>
+          <View style={s.heroStats}>
+            <View style={s.heroStat}>
+              <Text style={s.heroStatLabel}>Valeurs</Text>
+              <Text style={s.heroStatValue}>{market.length || '—'}</Text>
+            </View>
+            <View style={s.heroStat}>
+              <Text style={s.heroStatLabel}>Top volume</Text>
+              <Text style={s.heroStatValue} numberOfLines={1}>{active[0]?.ticker ?? '—'}</Text>
+            </View>
+            <View style={s.heroStat}>
+              <Text style={s.heroStatLabel}>Leader</Text>
+              <Text style={[s.heroStatValue, { color: gainers[0]?.varDay >= 0 ? t.colors.success : t.colors.text }]} numberOfLines={1}>
+                {gainers[0] ? `${gainers[0].ticker} ${fmtPct(gainers[0].varDay, 1)}` : '—'}
+              </Text>
             </View>
           </View>
         </Card>
@@ -351,56 +357,19 @@ export default function PortfolioScreen() {
           </Card>
         )}
 
-        {/* My portfolio */}
-        {holdings.length > 0 ? (
-          <>
-            <Card>
-              <View style={s.summary}>
-                <View>
-                  <Text style={s.sumLabel}>Valeur portefeuille</Text>
-                  <Text style={s.sumVal}>{fmtMAD(totalValue)}</Text>
-                </View>
-                <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={s.sumLabel}>Plus/moins-value</Text>
-                  <Text style={[s.sumGain, { color: positive ? t.colors.success : t.colors.danger }]}>{fmtSigned(totalGain)}</Text>
-                  <Text style={[s.masiPct, { color: positive ? t.colors.success : t.colors.danger }]}>{fmtPct(gainPct, 2)}</Text>
-                </View>
-              </View>
-              {dividendTotal > 0 && (
-                <View style={s.divRow}>
-                  <Ionicons name="cash-outline" size={16} color={t.colors.gold} />
-                  <Text style={{ ...t.font.caption, color: t.colors.textSecondary, flex: 1 }}>Dividendes reçus</Text>
-                  <Text style={{ ...t.font.label, color: t.colors.gold }}>{fmtMAD(dividendTotal)}</Text>
-                </View>
-              )}
-            </Card>
-
-            {alloc.length >= 2 && (
-              <Card>
-                <SectionLabel>Répartition</SectionLabel>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: t.spacing.lg }}>
-                  <Donut size={120} thickness={18} data={alloc.map(a => ({ value: a.value, color: a.color }))} centerLabel={String(holdings.length)} centerSub="actions" />
-                  <View style={{ flex: 1, gap: 2 }}>
-                    {alloc.map(a => (
-                      <View key={a.ticker} style={s.legend}>
-                        <View style={[s.dot, { backgroundColor: a.color }]} />
-                        <Text style={{ ...t.font.body, color: t.colors.text, flex: 1 }}>{a.ticker.replace('.CS', '')}</Text>
-                        <Text style={{ ...t.font.label, color: t.colors.textSecondary }}>{Math.round((a.value / (totalValue || 1)) * 100)}%</Text>
-                      </View>
-                    ))}
-                  </View>
-                </View>
-              </Card>
-            )}
-
-            <View>
-              <SectionLabel style={{ marginLeft: 4 }}>Mon portefeuille</SectionLabel>
-              {holdings.map(h => <StockRow key={h.id} holding={h} quote={quotes[h.ticker]} />)}
+        {/* Portfolio entry point */}
+        <Card onPress={() => router.push('/my-portfolio')}>
+          <View style={s.smartRow}>
+            <View style={s.smartIcon}><Ionicons name="briefcase-outline" size={18} color={t.colors.primary} /></View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ ...t.font.label, color: t.colors.text }}>Portefeuille dédié</Text>
+              <Text style={{ ...t.font.caption, color: t.colors.textSecondary, marginTop: 2 }}>
+                {holdings.length > 0 ? `${holdings.length} lignes · valeur, impôts, frais et dividendes` : 'Importez ou ajoutez vos positions pour suivre le cash liquidable.'}
+              </Text>
             </View>
-          </>
-        ) : (
-          <Card><Text style={s.posHint}>Aucune position. Touchez + pour investir, ou ⭐ une valeur ci-dessous.</Text></Card>
-        )}
+            <Ionicons name="chevron-forward" size={18} color={t.colors.textTertiary} />
+          </View>
+        </Card>
 
         {/* Watchlist */}
         {watchlist.length > 0 && (
@@ -430,6 +399,13 @@ export default function PortfolioScreen() {
           <View style={{ marginBottom: 4 }}>
             <Field placeholder="Rechercher une valeur…" value={coteQuery} onChangeText={setCoteQuery} />
           </View>
+          {cote.length > 0 && (
+            <View style={s.quoteHead}>
+              <Text style={[s.quoteHeadTxt, { flex: 1 }]}>Paire</Text>
+              <Text style={[s.quoteHeadTxt, { width: 86, textAlign: 'right' }]}>Dernier</Text>
+              <Text style={[s.quoteHeadTxt, { width: 76, textAlign: 'right' }]}>24h</Text>
+            </View>
+          )}
           {cote.length === 0
             ? <Text style={s.posHint}>{loading ? 'Chargement de la cote…' : 'Aucune valeur.'}</Text>
             : cote.map((m, i) => <MktRow key={m.ticker} m={m} mode="pct" first={i === 0} />)}

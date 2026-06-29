@@ -9,6 +9,7 @@ import { Account } from '../../db/accounts';
 import { Transfer, getTransfers } from '../../db/transfers';
 import { useTheme } from '../../theme/ThemeProvider';
 import { fmtMAD } from '../../lib/format';
+import { usePrivacyMask } from '../../lib/usePrivacyMask';
 import { haptic } from '../../lib/haptics';
 import { useKeyboardHeight } from '../../lib/useKeyboard';
 import { AppHeader, HeaderIconButton, Card, EmptyState, Field, Pill, Button, Sheet, SectionLabel, useToast } from '../../components/ui';
@@ -20,15 +21,18 @@ const MOROCCAN_BANKS = [
   'Attijariwafa', 'CIH Bank', 'BMCE Bank', 'BCP', 'Banque Populaire',
   'BMCI', 'Crédit Agricole', 'CDG Capital', 'Société Générale', 'Al Barid Bank', 'Autre',
 ];
-const ACCOUNT_TYPES = [
-  { key: 'checking',  label: 'Compte courant' },
-  { key: 'savings',   label: 'Compte épargne' },
-  { key: 'card',      label: 'Carte de crédit' },
-  { key: 'emergency', label: "Fonds d'urgence" },
-] as const;
+// Cash is a built-in singleton (auto-created at startup) — never user-creatable.
+const CASH_TYPE = { key: 'cash' as const, label: 'Espèces', icon: 'cash-outline' };
+const ACCOUNT_TYPES: { key: Account['type']; label: string; icon: string; desc: string }[] = [
+  { key: 'checking',  label: 'Compte bancaire', icon: 'business-outline',       desc: 'Banque principale' },
+  { key: 'card',      label: 'Carte crédit',     icon: 'card-outline',           desc: 'Carte bancaire' },
+  { key: 'savings',   label: 'Épargne',          icon: 'trending-up-outline',    desc: 'Compte épargne' },
+  { key: 'emergency', label: 'Urgence',           icon: 'shield-checkmark-outline', desc: "Fonds d'urgence" },
+];
+const ALL_TYPES = [CASH_TYPE, ...ACCOUNT_TYPES];
 const CARD_COLORS = ['#0057FF', '#12161C', '#0ECB81', '#7C5CFF', '#F6465D', '#F0B90B'];
 
-function BankCard({ account, onPress }: { account: Account; onPress: () => void }) {
+function BankCard({ account, onPress, hide = false }: { account: Account; onPress: () => void; hide?: boolean }) {
   const s = StyleSheet.create({
     card: { width: CARD_W, height: CARD_W * 0.56, borderRadius: 22, padding: 22, justifyContent: 'space-between', backgroundColor: account.color },
     topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
@@ -40,7 +44,7 @@ function BankCard({ account, onPress }: { account: Account; onPress: () => void 
     balance: { color: '#fff', fontSize: 22, fontWeight: '800' },
     name: { color: 'rgba(255,255,255,0.75)', fontSize: 12, fontWeight: '600', textTransform: 'uppercase' },
   });
-  const typeLabel = ACCOUNT_TYPES.find(ty => ty.key === account.type)?.label;
+  const typeLabel = ALL_TYPES.find(ty => ty.key === account.type)?.label ?? account.type;
   return (
     <TouchableOpacity style={s.card} onPress={onPress} activeOpacity={0.9}>
       <View style={s.topRow}>
@@ -52,7 +56,7 @@ function BankCard({ account, onPress }: { account: Account; onPress: () => void 
       <View style={s.bottomRow}>
         <View>
           <Text style={s.balLabel}>Solde disponible</Text>
-          <Text style={s.balance}>{fmtMAD(account.balance, 2)}</Text>
+          <Text style={s.balance}>{hide ? '•••• MAD' : fmtMAD(account.balance, 2)}</Text>
         </View>
         <Text style={s.name}>{account.name}</Text>
       </View>
@@ -62,6 +66,7 @@ function BankCard({ account, onPress }: { account: Account; onPress: () => void 
 
 export default function CardsScreen() {
   const t = useTheme();
+  const { maskMAD, hide } = usePrivacyMask();
   const toast = useToast();
   const kb = useKeyboardHeight();
   const { accounts, load, addAccount, setBalance, removeAccount, transfer } = useAccountsStore();
@@ -119,6 +124,10 @@ export default function CardsScreen() {
   }
   function openEdit(a: Account) { setEditAcc(a); setEditBal(String(a.balance)); }
   function confirmDelete(a: Account) {
+    if (a.type === 'cash') {
+      Alert.alert('Espèces', 'Le compte espèces est requis et ne peut pas être supprimé.');
+      return;
+    }
     Alert.alert(a.name, `${a.bank} · ${fmtMAD(a.balance)}`, [
       { text: 'Supprimer ce compte', style: 'destructive', onPress: () => removeAccount(a.id) },
       { text: 'Annuler', style: 'cancel' },
@@ -149,7 +158,13 @@ export default function CardsScreen() {
     modalTitle: { ...t.font.title, color: t.colors.text },
     modalBody: { padding: t.spacing.xl, gap: t.spacing.lg, paddingBottom: 48 },
     pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: t.spacing.sm },
-    typeRow: { flexDirection: 'row', gap: t.spacing.sm },
+    typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: t.spacing.sm },
+    typeCard: { width: '47%', borderRadius: t.radius.md, borderWidth: 1.5, borderColor: t.colors.border, padding: 12, gap: 6, backgroundColor: t.colors.cardAlt },
+    typeCardOn: { borderColor: t.colors.primary, backgroundColor: t.colors.primarySoft },
+    typeIcon: { width: 36, height: 36, borderRadius: 10, backgroundColor: t.colors.border, justifyContent: 'center', alignItems: 'center' },
+    typeIconOn: { backgroundColor: t.colors.primary },
+    typeLabel: { ...t.font.body, fontWeight: '600', color: t.colors.text },
+    typeDesc: { ...t.font.caption, color: t.colors.textSecondary },
     colorRow: { flexDirection: 'row', gap: t.spacing.md },
     colorDot: { width: 38, height: 38, borderRadius: 19 },
     colorDotOn: { borderWidth: 3, borderColor: t.colors.text },
@@ -172,7 +187,7 @@ export default function CardsScreen() {
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
         <Card>
           <Text style={s.nwLabel}>Patrimoine total</Text>
-          <Text style={s.nwAmt}>{fmtMAD(totalBalance)}</Text>
+          <Text style={s.nwAmt}>{maskMAD(totalBalance)}</Text>
           <View style={s.nwStats}>
             <View style={s.nwStat}>
               <Text style={s.nwStatVal}>{accounts.length}</Text>
@@ -180,12 +195,12 @@ export default function CardsScreen() {
             </View>
             <View style={s.nwDivider} />
             <View style={s.nwStat}>
-              <Text style={[s.nwStatVal, { color: t.colors.success }]}>{fmtMAD(totalSavings)}</Text>
+              <Text style={[s.nwStatVal, { color: t.colors.success }]}>{maskMAD(totalSavings)}</Text>
               <Text style={s.nwStatLabel}>épargne</Text>
             </View>
             <View style={s.nwDivider} />
             <View style={s.nwStat}>
-              <Text style={[s.nwStatVal, { color: t.colors.gold }]}>{fmtMAD(totalEmergency)}</Text>
+              <Text style={[s.nwStatVal, { color: t.colors.gold }]}>{maskMAD(totalEmergency)}</Text>
               <Text style={s.nwStatLabel}>urgence</Text>
             </View>
           </View>
@@ -202,7 +217,7 @@ export default function CardsScreen() {
             <View style={s.cardsWrap}>
               {accounts.map((a, idx) => (
                 <View key={a.id} style={[s.cardShadow, { marginTop: idx === 0 ? 0 : -CARD_W * 0.28 }]}>
-                  <BankCard account={a} onPress={() => openEdit(a)} />
+                  <BankCard account={a} onPress={() => openEdit(a)} hide={hide} />
                 </View>
               ))}
             </View>
@@ -214,9 +229,9 @@ export default function CardsScreen() {
                   <View style={[s.listDot, { backgroundColor: a.color }]} />
                   <View style={s.listInfo}>
                     <Text style={s.listName} numberOfLines={1}>{a.name}</Text>
-                    <Text style={s.listBank} numberOfLines={1}>{a.bank} · {ACCOUNT_TYPES.find(ty => ty.key === a.type)?.label}</Text>
+                    <Text style={s.listBank} numberOfLines={1}>{a.bank} · {ALL_TYPES.find(ty => ty.key === a.type)?.label}</Text>
                   </View>
-                  <Text style={s.listBal}>{fmtMAD(a.balance)}</Text>
+                  <Text style={s.listBal}>{maskMAD(a.balance)}</Text>
                 </TouchableOpacity>
               ))}
             </Card>
@@ -235,7 +250,7 @@ export default function CardsScreen() {
                   <Text style={s.listName} numberOfLines={1}>{accName(tr.from_account)} → {accName(tr.to_account)}</Text>
                   <Text style={s.listBank}>{tr.date}</Text>
                 </View>
-                <Text style={s.listBal}>{fmtMAD(tr.amount)}</Text>
+                <Text style={s.listBal}>{maskMAD(tr.amount)}</Text>
               </View>
             ))}
           </Card>
@@ -258,9 +273,22 @@ export default function CardsScreen() {
               </View>
             </View>
             <View>
-              <SectionLabel>Type</SectionLabel>
-              <View style={s.typeRow}>
-                {ACCOUNT_TYPES.map(ty => <Pill key={ty.key} label={ty.label} selected={type === ty.key} onPress={() => setType(ty.key)} />)}
+              <SectionLabel>Type de compte</SectionLabel>
+              <View style={s.typeGrid}>
+                {ACCOUNT_TYPES.map(ty => (
+                  <TouchableOpacity
+                    key={ty.key}
+                    style={[s.typeCard, type === ty.key && s.typeCardOn]}
+                    onPress={() => setType(ty.key)}
+                    activeOpacity={0.75}
+                  >
+                    <View style={[s.typeIcon, type === ty.key && s.typeIconOn]}>
+                      <Ionicons name={ty.icon as any} size={18} color={type === ty.key ? '#fff' : t.colors.textSecondary} />
+                    </View>
+                    <Text style={s.typeLabel}>{ty.label}</Text>
+                    <Text style={s.typeDesc}>{ty.desc}</Text>
+                  </TouchableOpacity>
+                ))}
               </View>
             </View>
             <Field label="Solde actuel (MAD)" placeholder="0.00" value={balance} onChangeText={setBalance2} keyboardType="decimal-pad" big />

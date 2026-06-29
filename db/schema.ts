@@ -48,7 +48,8 @@ export function initDb(): void {
     ticker TEXT NOT NULL UNIQUE,
     company_name TEXT NOT NULL DEFAULT '',
     shares REAL NOT NULL,
-    buy_price REAL NOT NULL
+    buy_price REAL NOT NULL,
+    manual_price REAL
   )`);
   db.execSync(`CREATE TABLE IF NOT EXISTS accounts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -118,4 +119,5 @@ export function initDb(): void {
   addColumn(db, 'transactions', 'account_id', 'INTEGER');
   addColumn(db, 'transactions', 'receipt_uri', 'TEXT');
   addColumn(db, 'categories', 'budget', 'TEXT');
+  addColumn(db, 'holdings', 'manual_price', 'REAL');
 }

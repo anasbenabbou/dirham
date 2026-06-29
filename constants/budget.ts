@@ -1,27 +1,55 @@
 export type BudgetType = 'needs' | 'wants' | 'savings';
 
-export interface BudgetRule {
-  category: string;
-  label: string;
-  percentage: number;   // share of total income
-  type: BudgetType;
-}
-
-/** The 40 / 20 / 40 plan: 40% essential needs, 20% lifestyle wants, 40% savings. */
-export const BUDGET_SECTIONS: Record<BudgetType, { label: string; pct: number }> = {
-  needs:   { label: 'Besoins',  pct: 40 },
-  wants:   { label: 'Envies',   pct: 20 },
-  savings: { label: 'Épargne',  pct: 40 },
+export const BUDGET_SECTIONS: Record<BudgetType, { label: string; desc: string }> = {
+  needs:   { label: 'Besoins',  desc: 'Logement, alimentation, transport, santé...' },
+  wants:   { label: 'Envies',   desc: 'Loisirs, vêtements, sorties...' },
+  savings: { label: 'Épargne',  desc: "Épargne, urgence, investissement, objectifs" },
 };
 
 export const BUDGET_ORDER: BudgetType[] = ['needs', 'wants', 'savings'];
 
-export const DEFAULT_BUDGET_RULES: BudgetRule[] = [
-  { category: 'housing',       label: 'Logement',     percentage: 20, type: 'needs' },
-  { category: 'food',          label: 'Alimentation', percentage: 12, type: 'needs' },
-  { category: 'transport',     label: 'Transport',    percentage: 8,  type: 'needs' },
-  { category: 'entertainment', label: 'Loisirs',      percentage: 10, type: 'wants' },
-  { category: 'clothing',      label: 'Vêtements',    percentage: 6,  type: 'wants' },
-  { category: 'other_expense', label: 'Divers',       percentage: 4,  type: 'wants' },
-  { category: 'savings',       label: 'Épargne',      percentage: 40, type: 'savings' },
-];
+/** Default % allocation — user can override via settings (must sum to 100). */
+export const DEFAULT_PCT: Record<BudgetType, number> = {
+  needs: 40, wants: 20, savings: 40,
+};
+
+/** Categories that represent goal contributions — shown separately inside the Épargne card. */
+export const GOAL_CATEGORIES = ['savings'];
+
+/**
+ * Rebalancing rule: if section A overspends by X,
+ * each other section's effective limit is reduced by X / (n-1).
+ *
+ * Returns adjusted limits that always reflect total income correctly.
+ */
+export function computeAdjustedLimits(
+  income: number,
+  pct: Record<BudgetType, number>,
+  spent: Record<BudgetType, number>,
+): Record<BudgetType, { base: number; adjusted: number; overflow: number; reduction: number }> {
+  const sections = BUDGET_ORDER;
+  const n = sections.length;
+
+  const base: Record<string, number> = {};
+  const overflow: Record<string, number> = {};
+  let totalOverflow = 0;
+
+  for (const sec of sections) {
+    base[sec] = income * pct[sec] / 100;
+    overflow[sec] = Math.max(0, (spent[sec] ?? 0) - base[sec]);
+    totalOverflow += overflow[sec];
+  }
+
+  const result: Record<string, { base: number; adjusted: number; overflow: number; reduction: number }> = {};
+  for (const sec of sections) {
+    const overflowFromOthers = totalOverflow - overflow[sec];
+    const reduction = overflowFromOthers / (n - 1);
+    result[sec] = {
+      base: base[sec],
+      adjusted: Math.max(0, base[sec] - reduction),
+      overflow: overflow[sec],
+      reduction,
+    };
+  }
+  return result as Record<BudgetType, { base: number; adjusted: number; overflow: number; reduction: number }>;
+}

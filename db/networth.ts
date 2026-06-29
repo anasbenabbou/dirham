@@ -6,7 +6,9 @@ export interface Snapshot { date: string; total: number; }
 export function snapshotNetWorth(): void {
   const db = getDb();
   const today = new Date().toISOString().slice(0, 10);
-  const row = db.getFirstSync<{ total: number }>(`SELECT COALESCE(SUM(balance),0) as total FROM accounts`);
+  const accRow = db.getFirstSync<{ total: number }>(`SELECT COALESCE(SUM(balance),0) as total FROM accounts`);
+  const goalRow = db.getFirstSync<{ total: number }>(`SELECT COALESCE(SUM(current_amount),0) as total FROM goals WHERE completed = 0`);
+  const row = { total: (accRow?.total ?? 0) + (goalRow?.total ?? 0) };
   db.runSync(
     `INSERT INTO networth_snapshots (date, total) VALUES (?, ?)
      ON CONFLICT(date) DO UPDATE SET total = excluded.total`,

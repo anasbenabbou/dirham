@@ -17,6 +17,7 @@ interface PortfolioStore {
   error: string | null;
   instruments: Instrument[];
   instrumentsSyncing: boolean;
+  lastPriceRefresh: number;
   loadHoldings: () => void;
   loadWatchlist: () => void;
   loadDividends: () => void;
@@ -43,6 +44,7 @@ export const usePortfolioStore = create<PortfolioStore>((set, get) => ({
   error: null,
   instruments: [],
   instrumentsSyncing: false,
+  lastPriceRefresh: 0,
 
   loadHoldings() { set({ holdings: getHoldings() }); },
   loadWatchlist() { set({ watchlist: getWatchlist() }); },
@@ -71,7 +73,10 @@ export const usePortfolioStore = create<PortfolioStore>((set, get) => ({
   removeDividend(id) { deleteDividend(id); get().loadDividends(); },
 
   async refreshPrices() {
-    set({ loading: true, error: null });
+    const now = Date.now();
+    const hasSnapshot = get().market.length > 0 && get().masi != null;
+    if (hasSnapshot && now - get().lastPriceRefresh < 45_000) return;
+    set({ loading: !hasSnapshot, error: null });
     try {
       const [market, masi] = await Promise.all([fetchMarket(), fetchMasi()]);
       // Derive the per-ticker quote map (used by holdings, watchlist, detail).
@@ -80,7 +85,7 @@ export const usePortfolioStore = create<PortfolioStore>((set, get) => ({
         const prev = m.prevClose ?? (m.varDay ? m.last / (1 + m.varDay / 100) : m.last);
         quotes[m.ticker] = { ticker: m.ticker, name: m.name, price: m.last, change: m.last - prev, changePercent: m.varDay };
       }
-      set({ market, quotes, masi, loading: false });
+      set({ market, quotes, masi, loading: false, lastPriceRefresh: Date.now() });
     } catch (e: any) {
       set({ loading: false, error: e?.message ?? 'Erreur réseau' });
     }
