@@ -22,6 +22,8 @@ export interface IndexQuote {
  * The user's money/data stays local — only market prices come from the network.
  */
 const API = 'https://api.casablanca-bourse.com/fr/api/bourse_data';
+const CACHE_TTL_MS = 45_000;
+const jsonCache = new Map<string, { at: number; data: any }>();
 
 const num = (v: any): number | null => {
   const n = parseFloat(v);
@@ -29,14 +31,19 @@ const num = (v: any): number | null => {
 };
 
 async function fetchJson(url: string, timeoutMs = 12000): Promise<any | null> {
+  const cached = jsonCache.get(url);
+  if (cached && Date.now() - cached.at < CACHE_TTL_MS) return cached.data;
+
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     const res = await fetch(url, { headers: { Accept: 'application/json' }, signal: ctrl.signal });
     if (!res.ok) return null;
-    return await res.json();
+    const data = await res.json();
+    jsonCache.set(url, { at: Date.now(), data });
+    return data;
   } catch {
-    return null;
+    return cached?.data ?? null;
   } finally {
     clearTimeout(timer);
   }

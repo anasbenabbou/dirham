@@ -5,10 +5,12 @@ import { useGoalsStore } from '../../store/useGoalsStore';
 import GoalCard from '../../components/GoalCard';
 import { useTheme } from '../../theme/ThemeProvider';
 import { fmtMAD } from '../../lib/format';
+import { usePrivacyMask } from '../../lib/usePrivacyMask';
 import { AppHeader, HeaderIconButton, Card, EmptyState, Field, Button, Sheet } from '../../components/ui';
 
 export default function GoalsScreen() {
   const t = useTheme();
+  const { maskMAD } = usePrivacyMask();
   const { goals, load, addGoal } = useGoalsStore();
   const [showNew, setShowNew] = useState(false);
   const [name, setName] = useState('');
@@ -54,12 +56,12 @@ export default function GoalsScreen() {
           goals.length > 0 ? (
             <Card style={s.summary as any}>
               <View style={s.item}>
-                <Text style={s.amt}>{fmtMAD(totalSaved)}</Text>
+                <Text style={s.amt}>{maskMAD(totalSaved)}</Text>
                 <Text style={s.label}>Épargné</Text>
               </View>
               <View style={s.divider} />
               <View style={s.item}>
-                <Text style={s.amt}>{fmtMAD(totalTargets)}</Text>
+                <Text style={s.amt}>{maskMAD(totalTargets)}</Text>
                 <Text style={s.label}>Objectifs</Text>
               </View>
               <View style={s.divider} />

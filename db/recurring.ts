@@ -1,5 +1,6 @@
 import { getDb } from './schema';
 import { insertTransaction } from './transactions';
+import { adjustBalance, ensureDefaultAccount } from './accounts';
 
 export type Frequency = 'monthly' | 'weekly';
 
@@ -61,7 +62,10 @@ export function processDueRecurring(): number {
     let next = r.next_date;
     let guard = 0;
     while (next <= today && guard < 240) {
-      insertTransaction({ amount: r.amount, category: r.category, note: r.note || 'Récurrent', date: next, type: r.type });
+      const cashId = ensureDefaultAccount();
+      insertTransaction({ amount: r.amount, category: r.category, note: r.note || 'Récurrent', date: next, type: r.type, account_id: cashId });
+      // Credit/debit account so balance reflects recurring income/expenses
+      adjustBalance(cashId, r.type === 'income' ? r.amount : -r.amount);
       posted++;
       next = advance(next, r.frequency, r.anchor_day);
       guard++;

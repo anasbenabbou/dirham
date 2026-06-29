@@ -64,7 +64,6 @@ export function migrateCategoriesBudgetV1(): void {
   db.withTransactionSync(() => {
     for (const c of DEFAULT_CATEGORIES) {
       if (c.budget) {
-        // only fill where the user hasn't set one
         db.runSync(`UPDATE categories SET budget = ? WHERE key = ? AND (budget IS NULL OR budget = '')`, [c.budget, c.key]);
       }
       if (c.key === 'emergency_fund' || c.key === 'investment_savings' || c.key === 'savings') {
@@ -74,5 +73,19 @@ export function migrateCategoriesBudgetV1(): void {
     }
   });
   setSetting('cat_budget_v1', '1');
+  invalidateCategoryCache();
+}
+
+/**
+ * Moves the `savings` category from budget group 'savings' → 'goals'
+ * and updates its label/icon to reflect goal contributions. Runs once.
+ */
+/** Ensures `savings` key is in the savings section (not goals — that was reverted). */
+export function migrateSavingsToGoalsV2(): void {
+  // Always keep savings in the savings bucket — fix any prior migration that moved it to goals.
+  getDb().runSync(
+    `UPDATE categories SET budget = 'savings', label = 'Objectifs', icon = 'flag' WHERE key = 'savings'`
+  );
+  setSetting('cat_goals_v2', '1');
   invalidateCategoryCache();
 }

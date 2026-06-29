@@ -46,6 +46,60 @@ export function LineChart({
   );
 }
 
+/* ── Two-line normalized comparison chart ─────────────────────────────── */
+export function CompareChart({
+  primary, secondary, width, height = 150, primaryColor, secondaryColor, labels,
+}: {
+  primary: number[];
+  secondary: number[];
+  width: number;
+  height?: number;
+  primaryColor?: string;
+  secondaryColor?: string;
+  labels?: string[];
+}) {
+  const t = useTheme();
+  const a = normalize(primary);
+  const b = normalize(secondary);
+  const n = Math.min(a.length, b.length);
+  if (n < 2) {
+    return <View style={{ height, justifyContent: 'center' }}><Text style={{ color: t.colors.textSecondary, textAlign: 'center', fontSize: 13 }}>Historique insuffisant.</Text></View>;
+  }
+  const p = a.slice(-n);
+  const s = b.slice(-n);
+  const all = [...p, ...s];
+  const max = Math.max(...all, 1);
+  const min = Math.min(...all, -1);
+  const range = max - min || 1;
+  const pad = 8;
+  const h = height - 20;
+  const pathFor = (series: number[]) => series.map((v, i) => {
+    const x = pad + (i * (width - pad * 2)) / (series.length - 1);
+    const y = pad + (1 - (v - min) / range) * (h - pad * 2);
+    return `${i === 0 ? 'M' : 'L'}${x},${y}`;
+  }).join(' ');
+
+  return (
+    <View>
+      <Svg width={width} height={h}>
+        <Path d={pathFor(s)} stroke={secondaryColor ?? t.colors.textTertiary} strokeWidth={2} fill="none" strokeLinejoin="round" strokeLinecap="round" />
+        <Path d={pathFor(p)} stroke={primaryColor ?? t.colors.success} strokeWidth={2.8} fill="none" strokeLinejoin="round" strokeLinecap="round" />
+      </Svg>
+      {labels && (
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+          {labels.map((l, i) => <Text key={i} style={{ fontSize: 10, color: t.colors.textTertiary }}>{l}</Text>)}
+        </View>
+      )}
+    </View>
+  );
+}
+
+function normalize(data: number[]): number[] {
+  const base = data.find(v => v > 0) ?? 0;
+  if (base <= 0) return [];
+  return data.map(v => ((v - base) / base) * 100);
+}
+
 /* ── Grouped/colored bars ──────────────────────────────────────────────── */
 export function Bars({
   data, width, height = 130,

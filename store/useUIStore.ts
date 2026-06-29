@@ -7,6 +7,8 @@ interface UIState {
   menuOpen: boolean;
   openMenu: () => void;
   closeMenu: () => void;
+  hideAmounts: boolean;
+  toggleHideAmounts: () => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -16,4 +18,6 @@ export const useUIStore = create<UIState>((set) => ({
   menuOpen: false,
   openMenu:  () => set({ menuOpen: true }),
   closeMenu: () => set({ menuOpen: false }),
+  hideAmounts: false,
+  toggleHideAmounts: () => set(s => ({ hideAmounts: !s.hideAmounts })),
 }));

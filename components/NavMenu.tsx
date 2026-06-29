@@ -49,8 +49,10 @@ export default function NavMenu() {
 
   const tiles: { icon: IconName; label: string; sub: string; color: string; to: string }[] = [
     { icon: 'receipt-outline',  label: 'Transactions', sub: 'Historique & recherche', color: t.colors.primary, to: '/transactions' },
+    { icon: 'briefcase-outline', label: 'Portefeuille', sub: 'Valeur, impots, frais', color: t.colors.success, to: '/my-portfolio' },
+    { icon: 'school-outline', label: 'Coach', sub: 'Regles investissement', color: t.colors.gold, to: '/investment-coach' },
     { icon: 'pie-chart-outline', label: 'Budget',       sub: 'Règle 40 / 20 / 40',    color: t.colors.gold,    to: '/budget' },
-    { icon: 'pulse-outline',    label: 'Analyses',     sub: 'Santé & tendances',     color: t.colors.success, to: '/insights' },
+    { icon: 'pulse-outline',    label: 'Analyses',     sub: 'Santé & tendances',     color: t.colors.primary, to: '/insights' },
     { icon: 'repeat',           label: 'Récurrents',   sub: 'Salaire, loyer…',       color: '#8B7CFF',        to: '/recurring' },
     { icon: 'settings-outline', label: 'Réglages',     sub: 'Thème, notifications',  color: t.colors.textSecondary, to: '/settings' },
   ];

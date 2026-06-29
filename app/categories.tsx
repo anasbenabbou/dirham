@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { AppHeader, HeaderIconButton, Card, SectionLabel, Field, Button, Sheet, Segmented, CategoryIcon } from '../components/ui';
 import { useCategoriesStore } from '../store/useCategoriesStore';
 import { Category, CategoryType, BudgetGroup, CATEGORY_ICONS, CATEGORY_COLORS, IconName } from '../constants/categories';
-import { BUDGET_SECTIONS, BUDGET_ORDER } from '../constants/budget';
+import { BUDGET_SECTIONS, BUDGET_ORDER, DEFAULT_PCT, BudgetType } from '../constants/budget';
 import { useTheme } from '../theme/ThemeProvider';
 import { haptic } from '../lib/haptics';
 
@@ -121,7 +121,7 @@ export default function CategoriesScreen() {
                   return (
                     <TouchableOpacity key={g} style={[s.budgetPill, on && { backgroundColor: t.colors.primary, borderColor: t.colors.primary }]} onPress={() => setBudget(g)}>
                       <Text style={[s.budgetTxt, { color: on ? t.colors.onPrimary : t.colors.textSecondary }]}>{BUDGET_SECTIONS[g].label}</Text>
-                      <Text style={[s.budgetPct, { color: on ? t.colors.onPrimary : t.colors.textTertiary }]}>{BUDGET_SECTIONS[g].pct}%</Text>
+                      <Text style={[s.budgetPct, { color: on ? t.colors.onPrimary : t.colors.textTertiary }]}>{DEFAULT_PCT[g as BudgetType]}%</Text>
                     </TouchableOpacity>
                   );
                 })}

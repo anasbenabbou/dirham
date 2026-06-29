@@ -9,6 +9,7 @@ import { fmtMAD, fmtNum, fmtPct, fmtSigned } from '../../lib/format';
 import { fetchHistory, Candle } from '../../api/mansa';
 import { nameForSymbol } from '../../db/instruments';
 import { haptic } from '../../lib/haptics';
+import { holdingPrice } from '../../lib/finance';
 
 const RANGES = [
   { key: '1M', n: 22 }, { key: '3M', n: 66 }, { key: '6M', n: 132 }, { key: '1A', n: 252 },
@@ -57,7 +58,7 @@ export default function StockDetailScreen() {
   const myDivs = dividends.filter(d => d.ticker === tk);
   const divTotal = myDivs.reduce((s, d) => s + d.amount, 0);
 
-  const price = m?.last ?? quote?.price ?? holding?.buy_price ?? 0;
+  const price = holding ? holdingPrice(holding, quotes) : m?.last ?? quote?.price ?? 0;
   const varDay = m?.varDay ?? quote?.changePercent ?? 0;
   const dayUp = varDay >= 0;
 
@@ -66,12 +67,15 @@ export default function StockDetailScreen() {
   const chartUp = closes.length > 1 ? closes[closes.length - 1] >= closes[0] : dayUp;
   const periodHigh = closes.length ? Math.max(...closes) : null;
   const periodLow = closes.length ? Math.min(...closes) : null;
+  const liquidityTone = m?.volume == null ? 'neutral' : m.volume < 100_000 ? 'danger' : m.volume < 1_000_000 ? 'neutral' : 'success';
+  const liquidityLabel = m?.volume == null ? 'Volume indisponible' : m.volume < 100_000 ? 'Risque liquidité élevé' : m.volume < 1_000_000 ? 'Liquidité moyenne' : 'Liquidité correcte';
 
   // position
   const value = holding ? holding.shares * price : 0;
   const invested = holding ? holding.shares * holding.buy_price : 0;
   const gain = value - invested;
   const gainPct = invested > 0 ? (gain / invested) * 100 : 0;
+  const distanceFromCost = holding ? ((price - holding.buy_price) / holding.buy_price) * 100 : null;
 
   function addDiv() {
     const amt = parseFloat(divAmt);
@@ -103,6 +107,11 @@ export default function StockDetailScreen() {
     statVal: { ...t.font.heading, color: t.colors.text, marginTop: 3 },
     divHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: t.spacing.sm },
     divRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderTopWidth: 1, borderTopColor: t.colors.border },
+    signal: { flexDirection: 'row', alignItems: 'center', gap: t.spacing.md, paddingVertical: 11, borderTopWidth: 1, borderTopColor: t.colors.border },
+    signalIcon: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: t.colors.surface },
+    signalText: { flex: 1, minWidth: 0 },
+    signalTitle: { ...t.font.label, color: t.colors.text },
+    signalNote: { ...t.font.caption, color: t.colors.textSecondary, marginTop: 2 },
   });
 
   const Stat = ({ label, value: v }: { label: string; value: string }) => (
@@ -164,6 +173,44 @@ export default function StockDetailScreen() {
           </View>
         </Card>
 
+        <Card>
+          <SectionLabel>Intelligence</SectionLabel>
+          <View style={[s.signal, { borderTopWidth: 0 }]}>
+            <View style={s.signalIcon}><Ionicons name="water-outline" size={17} color={liquidityTone === 'danger' ? t.colors.danger : t.colors.primary} /></View>
+            <View style={s.signalText}>
+              <Text style={s.signalTitle}>Liquidité</Text>
+              <Text style={s.signalNote}>Volume: {compact(m?.volume)} MAD</Text>
+            </View>
+            <Badge tone={liquidityTone}>{liquidityLabel}</Badge>
+          </View>
+          <View style={s.signal}>
+            <View style={s.signalIcon}><Ionicons name="calendar-outline" size={17} color={t.colors.primary} /></View>
+            <View style={s.signalText}>
+              <Text style={s.signalTitle}>Performance annuelle</Text>
+              <Text style={s.signalNote}>Variation YTD fournie par la Bourse de Casablanca.</Text>
+            </View>
+            <Text style={{ ...t.font.label, color: (m?.varYear ?? 0) >= 0 ? t.colors.success : t.colors.danger }}>{m?.varYear != null ? fmtPct(m.varYear, 2) : '—'}</Text>
+          </View>
+          {holding && (
+            <View style={s.signal}>
+              <View style={s.signalIcon}><Ionicons name="analytics-outline" size={17} color={t.colors.primary} /></View>
+              <View style={s.signalText}>
+                <Text style={s.signalTitle}>Distance du coût</Text>
+                <Text style={s.signalNote}>Prix moyen: {fmtNum(holding.buy_price)} MAD · actuel: {fmtNum(price)} MAD</Text>
+              </View>
+              <Text style={{ ...t.font.label, color: (distanceFromCost ?? 0) >= 0 ? t.colors.success : t.colors.danger }}>{distanceFromCost != null ? fmtPct(distanceFromCost, 2) : '—'}</Text>
+            </View>
+          )}
+          <View style={s.signal}>
+            <View style={s.signalIcon}><Ionicons name="cash-outline" size={17} color={t.colors.gold} /></View>
+            <View style={s.signalText}>
+              <Text style={s.signalTitle}>Dividendes</Text>
+              <Text style={s.signalNote}>{myDivs.length ? `${myDivs.length} paiement(s) enregistré(s)` : 'Aucun historique local enregistré'}</Text>
+            </View>
+            <Text style={{ ...t.font.label, color: divTotal > 0 ? t.colors.success : t.colors.textTertiary }}>{fmtMAD(divTotal)}</Text>
+          </View>
+        </Card>
+
         {/* Position */}
         {holding && (
           <Card>
@@ -211,7 +258,7 @@ export default function StockDetailScreen() {
 
         {!holding && (
           <Text style={{ ...t.font.caption, color: t.colors.textTertiary, textAlign: 'center' }}>
-            Ajoutez cette valeur à votre portefeuille avec le bouton + de l'onglet Bourse.
+            Ajoutez cette valeur à votre portefeuille avec le bouton + de l'onglet Bourse, puis suivez-la dans la page Portefeuille.
           </Text>
         )}
       </ScrollView>

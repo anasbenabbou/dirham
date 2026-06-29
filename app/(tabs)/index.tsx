@@ -8,9 +8,10 @@ import { useTransactionStore } from '../../store/useTransactionStore';
 import { usePortfolioStore } from '../../store/usePortfolioStore';
 import { useAccountsStore } from '../../store/useAccountsStore';
 import { useGoalsStore } from '../../store/useGoalsStore';
+import { useUIStore } from '../../store/useUIStore';
 import { getCategoryByKey } from '../../db/categories';
-import { computeNetWorth } from '../../lib/finance';
-import { fmtMAD, fmtSigned } from '../../lib/format';
+import { computeNetWorth, holdingPrice } from '../../lib/finance';
+import { fmtMAD, fmtSigned, HIDDEN_AMOUNT } from '../../lib/format';
 
 const DAY_LABELS = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
 function getLast7Days() {
@@ -27,13 +28,15 @@ export default function DashboardScreen() {
   const { holdings, quotes, loadHoldings } = usePortfolioStore();
   const { accounts, load: loadAccounts } = useAccountsStore();
   const { goals, load: loadGoals } = useGoalsStore();
+  const { hideAmounts, toggleHideAmounts } = useUIStore();
+  const mask = (val: string) => hideAmounts ? HIDDEN_AMOUNT : val;
 
   useEffect(() => { loadMonth(currentMonth); loadHoldings(); loadAccounts(); loadGoals(); }, []);
 
   const balance = monthlyTotals.income - monthlyTotals.expenses;
   const nw = computeNetWorth(accounts, holdings, quotes, goals);
 
-  const portfolioValue = holdings.reduce((s, h) => s + h.shares * (quotes[h.ticker]?.price ?? h.buy_price), 0);
+  const portfolioValue = holdings.reduce((s, h) => s + h.shares * holdingPrice(h, quotes), 0);
   const portfolioGain = portfolioValue - holdings.reduce((s, h) => s + h.shares * h.buy_price, 0);
 
   const days = getLast7Days();
@@ -107,7 +110,15 @@ export default function DashboardScreen() {
         title="Dirham"
         subtitle="Votre argent, sous contrôle"
         large
-        right={<HeaderIconButton icon="settings-outline" onPress={() => router.push('/settings')} />}
+        right={
+          <>
+            <HeaderIconButton
+              icon={hideAmounts ? 'eye-off-outline' : 'eye-outline'}
+              onPress={toggleHideAmounts}
+            />
+            <HeaderIconButton icon="settings-outline" onPress={() => router.push('/settings')} />
+          </>
+        }
       />
 
       <ScrollView
@@ -120,7 +131,7 @@ export default function DashboardScreen() {
           <View style={s.heroTopRow}>
             <View style={{ flex: 1 }}>
               <Text style={s.heroMonth}>Patrimoine total</Text>
-              <Text style={s.heroBalance}>{fmtMAD(nw.total)}</Text>
+              <Text style={s.heroBalance}>{mask(fmtMAD(nw.total))}</Text>
               <Text style={s.heroSub}>Liquidités · Bourse · Objectifs</Text>
             </View>
             <TouchableOpacity style={s.analyseBtn} onPress={() => router.push('/insights')} activeOpacity={0.85}>
@@ -130,17 +141,17 @@ export default function DashboardScreen() {
           <View style={s.chips}>
             <View style={s.chip3}>
               <Text style={s.chipLbl}>Liquidités</Text>
-              <Text style={s.chipAmt}>{fmtMAD(nw.cash + nw.emergency)}</Text>
+              <Text style={s.chipAmt}>{mask(fmtMAD(nw.cash + nw.emergency))}</Text>
             </View>
             <View style={s.chipDivider} />
             <View style={s.chip3}>
               <Text style={s.chipLbl}>Bourse</Text>
-              <Text style={s.chipAmt}>{fmtMAD(nw.invest)}</Text>
+              <Text style={s.chipAmt}>{mask(fmtMAD(nw.invest))}</Text>
             </View>
             <View style={s.chipDivider} />
             <View style={s.chip3}>
               <Text style={s.chipLbl}>Objectifs</Text>
-              <Text style={s.chipAmt}>{fmtMAD(nw.goals)}</Text>
+              <Text style={s.chipAmt}>{mask(fmtMAD(nw.goals))}</Text>
             </View>
           </View>
         </View>
@@ -156,15 +167,15 @@ export default function DashboardScreen() {
           <View style={s.monthRow}>
             <View style={s.monthCell}>
               <Text style={s.monthLbl}>Revenus</Text>
-              <Text style={[s.monthVal, { color: t.colors.success }]}>{fmtSigned(monthlyTotals.income)}</Text>
+              <Text style={[s.monthVal, { color: t.colors.success }]}>{mask(fmtSigned(monthlyTotals.income))}</Text>
             </View>
             <View style={s.monthCell}>
               <Text style={s.monthLbl}>Dépenses</Text>
-              <Text style={[s.monthVal, { color: t.colors.danger }]}>{fmtSigned(-monthlyTotals.expenses)}</Text>
+              <Text style={[s.monthVal, { color: t.colors.danger }]}>{mask(fmtSigned(-monthlyTotals.expenses))}</Text>
             </View>
             <View style={s.monthCell}>
               <Text style={s.monthLbl}>Épargné</Text>
-              <Text style={[s.monthVal, { color: t.colors.text }]}>{fmtMAD(balance)}</Text>
+              <Text style={[s.monthVal, { color: t.colors.text }]}>{mask(fmtMAD(balance))}</Text>
             </View>
           </View>
         </Card>
@@ -218,16 +229,16 @@ export default function DashboardScreen() {
 
         {/* Quick links: Portfolio + Budget */}
         <View style={s.quickRow}>
-          <Card style={s.quickCard} onPress={() => router.push('/(tabs)/portfolio')}>
+          <Card style={s.quickCard} onPress={() => router.push('/my-portfolio')}>
             <View style={[s.quickIcon, { backgroundColor: t.colors.successSoft }]}>
               <Ionicons name="stats-chart" size={20} color={t.colors.success} />
             </View>
             <Text style={s.quickTitle}>Portefeuille</Text>
             {holdings.length > 0 ? (
               <>
-                <Text style={s.quickVal}>{fmtMAD(portfolioValue)}</Text>
+                <Text style={s.quickVal}>{mask(fmtMAD(portfolioValue))}</Text>
                 <Text style={[s.quickSub, { color: portfolioGain >= 0 ? t.colors.success : t.colors.danger }]}>
-                  {fmtSigned(portfolioGain)} BVC
+                  {mask(fmtSigned(portfolioGain))} BVC
                 </Text>
               </>
             ) : (
@@ -239,7 +250,7 @@ export default function DashboardScreen() {
               <Ionicons name="pie-chart" size={20} color={t.colors.primary} />
             </View>
             <Text style={s.quickTitle}>Budget 50/30/20</Text>
-            <Text style={s.quickVal}>{fmtMAD(monthlyTotals.expenses)}</Text>
+            <Text style={s.quickVal}>{mask(fmtMAD(monthlyTotals.expenses))}</Text>
             <Text style={s.quickSub}>Dépensé ce mois</Text>
           </Card>
         </View>
@@ -268,7 +279,7 @@ export default function DashboardScreen() {
                     <Text style={s.txDate} numberOfLines={1}>{tx.date}{tx.note ? ` · ${tx.note}` : ''}</Text>
                   </View>
                   <Text style={[s.txAmt, { color: isIncome ? t.colors.success : t.colors.text }]} numberOfLines={1}>
-                    {isIncome ? '+' : '−'}{fmtMAD(tx.amount)}
+                    {hideAmounts ? HIDDEN_AMOUNT : `${isIncome ? '+' : '−'}${fmtMAD(tx.amount)}`}
                   </Text>
                 </View>
               );

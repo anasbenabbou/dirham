@@ -29,10 +29,10 @@ export const DEFAULT_CATEGORIES: Category[] = [
   { key: 'entertainment', label: 'Loisirs',         icon: 'game-controller', color: '#FF6FD8', type: 'expense', budget: 'wants' },
   { key: 'clothing',      label: 'Vêtements',       icon: 'shirt',           color: '#5CC8FF', type: 'expense', budget: 'wants' },
   { key: 'other_expense', label: 'Autre',           icon: 'ellipsis-horizontal', color: '#9AA7C0', type: 'expense', budget: 'wants' },
-  // ── Épargne (savings) ──
+  // ── Épargne (savings — includes goals contributions) ──
   { key: 'emergency_fund',     label: "Fonds d'urgence", icon: 'shield-checkmark', color: '#0ECB81', type: 'expense', budget: 'savings' },
   { key: 'investment_savings', label: 'Investissement',  icon: 'trending-up',      color: '#F0B90B', type: 'expense', budget: 'savings' },
-  { key: 'savings',            label: 'Épargne',         icon: 'wallet',           color: '#3DD6C4', type: 'expense', budget: 'savings' },
+  { key: 'savings',            label: 'Objectifs',       icon: 'flag',             color: '#3DD6C4', type: 'expense', budget: 'savings' },
   // ── Revenus (income) ──
   { key: 'salary',        label: 'Salaire',         icon: 'briefcase',       color: '#0ECB81', type: 'income' },
   { key: 'freelance',     label: 'Freelance',       icon: 'laptop',          color: '#4D8DFF', type: 'income' },

@@ -70,6 +70,19 @@ export function getMonthlyTotals(month: string): { income: number; expenses: num
   };
 }
 
+/** Only salary + freelance count as the budget envelope — not goal withdrawals, gifts, etc. */
+const BUDGET_INCOME_CATEGORIES = ['salary', 'freelance'];
+
+export function getBudgetIncome(month: string): number {
+  const placeholders = BUDGET_INCOME_CATEGORIES.map(() => '?').join(',');
+  const row = getDb().getFirstSync<{ total: number }>(
+    `SELECT COALESCE(SUM(amount),0) as total FROM transactions
+     WHERE date LIKE ? AND type='income' AND category IN (${placeholders})`,
+    [`${month}%`, ...BUDGET_INCOME_CATEGORIES]
+  );
+  return row?.total ?? 0;
+}
+
 export function getMonthlyByCategory(month: string): Record<string, number> {
   const rows = getDb().getAllSync<{ category: string; total: number }>(
     `SELECT category, SUM(amount) as total FROM transactions WHERE date LIKE ? AND type='expense' GROUP BY category`,

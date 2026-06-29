@@ -10,6 +10,7 @@ import { useTransactionStore } from '../store/useTransactionStore';
 import { useUIStore } from '../store/useUIStore';
 import { useTheme } from '../theme/ThemeProvider';
 import { fmtMAD, fmtSigned } from '../lib/format';
+import { usePrivacyMask } from '../lib/usePrivacyMask';
 import { Transaction, getTransactions, getMonthlyTotals } from '../db/transactions';
 import { getCategoryByKey } from '../db/categories';
 import { useCategoriesStore } from '../store/useCategoriesStore';
@@ -26,6 +27,7 @@ function dateLabel(iso: string): string {
 
 export default function TransactionsScreen() {
   const t = useTheme();
+  const { maskMAD, maskSigned } = usePrivacyMask();
   const openQuickAdd = useUIStore(s => s.openQuickAdd);
   // React to store changes (add/edit/delete) without sharing its "current month".
   const storeSignal = useTransactionStore(s => s.transactions);
@@ -104,17 +106,17 @@ export default function TransactionsScreen() {
             <Card style={s.summary as any} padded>
               <View style={s.cell}>
                 <Text style={s.cellLabel}>Revenus</Text>
-                <Text style={[s.cellVal, { color: t.colors.success }]}>{fmtSigned(monthlyTotals.income)}</Text>
+                <Text style={[s.cellVal, { color: t.colors.success }]}>{maskSigned(monthlyTotals.income)}</Text>
               </View>
               <View style={s.divider} />
               <View style={s.cell}>
                 <Text style={s.cellLabel}>Dépenses</Text>
-                <Text style={[s.cellVal, { color: t.colors.danger }]}>{fmtSigned(-monthlyTotals.expenses)}</Text>
+                <Text style={[s.cellVal, { color: t.colors.danger }]}>{maskSigned(-monthlyTotals.expenses)}</Text>
               </View>
               <View style={s.divider} />
               <View style={s.cell}>
                 <Text style={s.cellLabel}>Solde</Text>
-                <Text style={[s.cellVal, { color: t.colors.text }]}>{fmtMAD(balance)}</Text>
+                <Text style={[s.cellVal, { color: t.colors.text }]}>{maskMAD(balance)}</Text>
               </View>
             </Card>
 

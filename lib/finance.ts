@@ -11,6 +11,10 @@ export interface NetWorth {
   total: number;
 }
 
+export function holdingPrice(h: Holding, quotes: Record<string, StockQuote>): number {
+  return quotes[h.ticker]?.price ?? h.manual_price ?? h.buy_price;
+}
+
 export function computeNetWorth(
   accounts: Account[],
   holdings: Holding[],
@@ -19,7 +23,7 @@ export function computeNetWorth(
 ): NetWorth {
   const emergency = accounts.filter(a => a.type === 'emergency').reduce((s, a) => s + a.balance, 0);
   const cash = accounts.filter(a => a.type !== 'emergency').reduce((s, a) => s + a.balance, 0);
-  const invest = holdings.reduce((s, h) => s + h.shares * (quotes[h.ticker]?.price ?? h.buy_price), 0);
+  const invest = holdings.reduce((s, h) => s + h.shares * holdingPrice(h, quotes), 0);
   const goalsSaved = goals.reduce((s, g) => s + g.current_amount, 0);
   return { cash, emergency, invest, goals: goalsSaved, total: cash + emergency + invest + goalsSaved };
 }

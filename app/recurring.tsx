@@ -5,6 +5,7 @@ import { AppHeader, HeaderIconButton, Card, EmptyState, Field, Pill, Button, She
 import { useRecurringStore } from '../store/useRecurringStore';
 import { useTheme } from '../theme/ThemeProvider';
 import { fmtMAD } from '../lib/format';
+import { usePrivacyMask } from '../lib/usePrivacyMask';
 import { getCategoryByKey } from '../db/categories';
 import { useCategoriesStore } from '../store/useCategoriesStore';
 import { Frequency } from '../db/recurring';
@@ -34,6 +35,8 @@ export default function RecurringScreen() {
   const t = useTheme();
   const { rules, load, add, toggle, remove } = useRecurringStore();
   const allCats = useCategoriesStore(s => s.categories);
+
+  const { maskMAD } = usePrivacyMask();
 
   const [show, setShow] = useState(false);
   const [type, setType] = useState<'expense' | 'income'>('expense');
@@ -103,7 +106,7 @@ export default function RecurringScreen() {
                 <Text style={s.meta}>{freqLabel} · prochaine : {r.next_date}</Text>
               </View>
               <Text style={[s.amt, { color: r.type === 'income' ? t.colors.success : t.colors.text }]}>
-                {r.type === 'income' ? '+' : '−'}{fmtMAD(r.amount)}
+                {r.type === 'income' ? '+' : '−'}{maskMAD(r.amount)}
               </Text>
               <Switch
                 value={!!r.active}

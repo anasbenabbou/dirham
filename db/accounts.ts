@@ -1,6 +1,6 @@
 import { getDb } from './schema';
 
-export type AccountType = 'checking' | 'savings' | 'card' | 'emergency';
+export type AccountType = 'cash' | 'checking' | 'savings' | 'card' | 'emergency';
 
 export interface Account {
   id: number;
@@ -42,9 +42,25 @@ export function ensureDefaultAccount(): number {
   if (first) return first.id;
   const res = db.runSync(
     `INSERT INTO accounts (name, bank, type, balance, color, last_four) VALUES (?, ?, ?, ?, ?, ?)`,
-    ['Espèces', 'Liquide', 'checking', 0, '#0ECB81', '']
+    ['Espèces', 'Liquide', 'cash', 0, '#0ECB81', '']
   );
   return res.lastInsertRowId;
+}
+
+/**
+ * Ensures a "Espèces" cash account always exists, regardless of other accounts.
+ * Safe to call every startup — no-op if one already exists.
+ */
+export function ensureCashAccount(): void {
+  const db = getDb();
+  const exists = db.getFirstSync<{ id: number }>(
+    `SELECT id FROM accounts WHERE type = 'cash' LIMIT 1`
+  );
+  if (exists) return;
+  db.runSync(
+    `INSERT INTO accounts (name, bank, type, balance, color, last_four) VALUES (?, ?, ?, ?, ?, ?)`,
+    ['Espèces', 'Liquide', 'cash', 0, '#0ECB81', '']
+  );
 }
 
 export function deleteAccount(id: number): void {
