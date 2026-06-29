@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "dirham",
+    "name": "Dirham",
     "slug": "dirham",
     "scheme": "dirham",
     "version": "1.0.0",
@@ -14,10 +14,8 @@
     "android": {
       "package": "com.anasbenabbou.dirham",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundColor": "#0B1640",
+        "foregroundImage": "./assets/adaptive-icon.png"
       },
       "predictiveBackGestureEnabled": false
     },
@@ -31,7 +29,15 @@
       "expo-router",
       "expo-sqlite",
       "expo-dev-client",
-      "./plugins/withBvcCert"
+      "./plugins/withBvcCert",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0B0E11",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 180
+        }
+      ]
     ],
     "extra": {
       "router": {},
